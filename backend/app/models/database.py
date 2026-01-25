@@ -232,6 +232,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db() -> None:
     """Initialize the database by creating all tables."""
+    # Ensure data directory exists before creating database
+    settings.data_dir
     Base.metadata.create_all(bind=engine)
 
 

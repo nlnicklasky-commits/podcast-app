@@ -58,6 +58,13 @@ class Settings(BaseSettings):
         return path
 
     @property
+    def data_dir(self) -> Path:
+        """Get the data directory as a Path object."""
+        path = Path("./data")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @property
     def max_duration_seconds(self) -> int:
         """Get max podcast duration in seconds."""
         return self.max_podcast_duration_hours * 3600
