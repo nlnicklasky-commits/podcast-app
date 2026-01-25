@@ -4,6 +4,10 @@ from functools import lru_cache
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Project root directory (podcast-app/)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
@@ -24,10 +28,10 @@ class Settings(BaseSettings):
     # Embedding Settings
     embedding_model: str = "all-MiniLM-L6-v2"
 
-    # Storage Paths
-    database_url: str = "sqlite:///./data/podcasts.db"
-    chroma_path: str = "./data/chroma"
-    audio_path: str = "./data/audio"
+    # Storage Paths - use absolute paths based on project root
+    database_url: str = f"sqlite:///{DATA_DIR / 'podcasts.db'}"
+    chroma_path: str = str(DATA_DIR / "chroma")
+    audio_path: str = str(DATA_DIR / "audio")
 
     # Processing Settings
     max_concurrent_jobs: int = 2
@@ -60,9 +64,8 @@ class Settings(BaseSettings):
     @property
     def data_dir(self) -> Path:
         """Get the data directory as a Path object."""
-        path = Path("./data")
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        return DATA_DIR
 
     @property
     def max_duration_seconds(self) -> int:
