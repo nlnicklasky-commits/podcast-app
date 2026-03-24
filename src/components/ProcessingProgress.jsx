@@ -26,26 +26,6 @@ const STATUS_MESSAGES = {
   cancelled: 'Cancelling...',
 }
 
-// Map step + sub-progress to overall bar percentage
-// downloading = 0–33%, transcribing = 33–66%, processing = 66–100%
-function calcOverallPct(status, stepProgress) {
-  const p = stepProgress || 0
-  switch (status) {
-    case 'downloading':
-      return Math.round((p / 100) * 33)
-    case 'transcribing':
-      // Whisper is a single API call — no granular progress.
-      // Pulse between 33-50% to show activity
-      return p >= 100 ? 66 : 33 + Math.round((p / 100) * 33)
-    case 'processing':
-      return 66 + Math.round((p / 100) * 34)
-    case 'ready':
-      return 100
-    default:
-      return 0
-  }
-}
-
 function useElapsedTimer(isRunning, startedAt, finishedAt) {
   const [elapsed, setElapsed] = useState(0)
 
@@ -93,7 +73,7 @@ function formatElapsed(seconds) {
  * Props:
  *   status     – one of: pending, downloading, transcribing, processing, ready, error
  *   compact    – if true, renders a smaller version for cards (default false)
- *   progress   – 0-100 sub-step progress from the DB (updated by edge function)
+ *   progress   – 0-100 overall progress from the DB (written directly by edge function)
  *   startedAt  – optional ISO timestamp for when processing started
  *   finishedAt – optional ISO timestamp for when processing finished
  */
@@ -105,25 +85,12 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
   const elapsed = useElapsedTimer(isActive, startedAt, isDone ? finishedAt : null)
 
-  // Overall bar percentage based on real progress
-  const pct = isDone ? 100 : isError ? 0 : calcOverallPct(status, progress)
-
-  // Step-level progress text (e.g., "Downloading... 45%")
-  const stepPct = Math.round(progress || 0)
-  const showStepPct = isActive && stepPct > 0
-
-  // Status message with step progress
-  const statusMsg = STATUS_MESSAGES[status] || ''
-  const displayMsg = showStepPct && status === 'downloading'
-    ? `Downloading audio... ${stepPct}%`
-    : showStepPct && status === 'processing'
-      ? `Generating embeddings & insights... ${stepPct}%`
-      : statusMsg
+  // Use the actual progress value from the DB
+  const pct = isDone ? 100 : isError ? 0 : Math.round(progress || 0)
 
   if (compact) {
     return (
       <div className="mt-2">
-        {/* Bar */}
         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-700 ease-out ${
@@ -136,10 +103,9 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             style={{ width: `${pct}%` }}
           />
         </div>
-        {/* Status label */}
         <div className="flex items-center justify-between mt-1">
           <span className={`text-xs ${isError ? 'text-red-400' : 'text-gray-400'}`}>
-            {displayMsg}
+            {STATUS_MESSAGES[status]}
           </span>
           <div className="flex items-center gap-2">
             {(isActive || (isDone && elapsed > 0)) && (
@@ -147,14 +113,9 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                 {formatElapsed(elapsed)}
               </span>
             )}
-            {isActive && (
-              <span className="text-xs text-purple-400 tabular-nums">
-                {pct}%
-              </span>
-            )}
-            {isDone && (
-              <span className="text-xs text-green-400">100%</span>
-            )}
+            <span className={`text-xs tabular-nums ${isDone ? 'text-green-400' : 'text-purple-400'}`}>
+              {pct}%
+            </span>
           </div>
         </div>
       </div>
@@ -171,7 +132,6 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
           return (
             <div key={step.id} className="flex items-center flex-1 last:flex-none">
-              {/* Step dot + label */}
               <div className="flex flex-col items-center">
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-500 ${
@@ -202,7 +162,6 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                   }`}
                 >
                   {step.label}
-                  {isCurrent && stepPct > 0 ? ` ${stepPct}%` : ''}
                 </span>
               </div>
 
@@ -211,10 +170,10 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                 <div className="flex-1 h-0.5 mx-2 mt-[-1rem] bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ease-out ${
-                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500' : ''
+                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500 animate-pulse' : ''
                     }`}
                     style={{
-                      width: isCompleted ? '100%' : isCurrent ? `${stepPct || 0}%` : '0%',
+                      width: isCompleted ? '100%' : isCurrent ? '50%' : '0%',
                     }}
                   />
                 </div>
@@ -224,7 +183,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
         })}
       </div>
 
-      {/* Full-width status bar */}
+      {/* Full-width progress bar */}
       <div className="h-2 bg-white/5 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${
@@ -233,18 +192,18 @@ export default function ProcessingProgress({ status = 'pending', compact = false
               : isDone
                 ? 'bg-green-500'
                 : 'bg-gradient-to-r from-purple-600 to-purple-400'
-          } ${isActive && status === 'transcribing' && stepPct === 0 ? 'animate-progress-shimmer' : ''}`}
+          } ${isActive && status === 'transcribing' ? 'animate-progress-shimmer' : ''}`}
           style={{ width: `${pct}%` }}
         />
       </div>
 
-      {/* Status message + timer */}
+      {/* Status message + timer + percentage */}
       <div className="flex items-center justify-between mt-2">
         <span className={`text-sm ${isError ? 'text-red-400' : isDone ? 'text-green-400' : 'text-gray-300'}`}>
           {isActive && (
             <span className="inline-block w-1.5 h-1.5 bg-purple-400 rounded-full mr-2 animate-pulse" />
           )}
-          {displayMsg}
+          {STATUS_MESSAGES[status]}
         </span>
         <div className="flex items-center gap-3">
           {(isActive || (isDone && elapsed > 0)) && (
