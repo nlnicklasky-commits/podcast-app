@@ -5,6 +5,7 @@ import { getInsights, getTranscript } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
+import ProcessingProgress from '../components/ProcessingProgress'
 import { formatDate, statusColors } from '../lib/utils'
 
 export default function PodcastDetail() {
@@ -138,6 +139,13 @@ export default function PodcastDetail() {
           )}
         </div>
       </div>
+
+      {/* Processing progress */}
+      {podcast.status !== 'pending' && (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+          <ProcessingProgress status={podcast.status} />
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/10 mb-6">

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { statusColors, formatDuration, formatDate } from '../lib/utils'
 import { processPodcast, getPodcastStatus } from '../services/processing'
+import ProcessingProgress from './ProcessingProgress'
 
 export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelect }) {
   const [processing, setProcessing] = useState(false)
   const statusClass = statusColors[podcast.status] || statusColors.pending
+  const isProcessing = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
 
   async function handleProcess(e) {
     e.stopPropagation()
@@ -66,17 +68,21 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
             <p className="text-sm text-gray-400 mt-0.5">{podcast.channel}</p>
           )}
           <div className="flex items-center gap-3 mt-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>
-              {podcast.status}
-            </span>
+            {!isProcessing && (
+              <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>
+                {podcast.status}
+              </span>
+            )}
             {podcast.duration_seconds && (
               <span className="text-xs text-gray-500">
                 {formatDuration(podcast.duration_seconds)}
               </span>
             )}
-            <span className="text-xs text-gray-500">
-              {formatDate(podcast.created_at)}
-            </span>
+            {!isProcessing && (
+              <span className="text-xs text-gray-500">
+                {formatDate(podcast.created_at)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -88,13 +94,8 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
               disabled={processing}
               className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-colors"
             >
-              {processing ? 'Processing...' : 'Process'}
+              {processing ? 'Starting...' : 'Process'}
             </button>
-          )}
-          {(podcast.status === 'downloading' || podcast.status === 'transcribing' || podcast.status === 'processing') && (
-            <span className="text-xs px-3 py-1.5 bg-purple-500/20 text-purple-400 rounded-lg animate-pulse">
-              {podcast.status}...
-            </span>
           )}
           {podcast.status === 'error' && (
             <button
@@ -118,6 +119,12 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
           </button>
         </div>
       </div>
+
+      {/* Progress bar — shown during active processing */}
+      {(isProcessing || podcast.status === 'ready') && (
+        <ProcessingProgress status={podcast.status} compact />
+      )}
+
       {podcast.error_message && podcast.status === 'error' && (
         <p className="text-xs text-red-400 mt-2 truncate" title={podcast.error_message}>
           Error: {podcast.error_message}
