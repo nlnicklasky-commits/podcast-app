@@ -141,11 +141,9 @@ export default function PodcastDetail() {
       </div>
 
       {/* Processing progress */}
-      {podcast.status !== 'pending' && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-          <ProcessingProgress status={podcast.status} />
-        </div>
-      )}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+        <ProcessingProgress status={podcast.status} />
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/10 mb-6">
