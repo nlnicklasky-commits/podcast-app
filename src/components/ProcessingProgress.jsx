@@ -26,20 +26,40 @@ const STATUS_MESSAGES = {
   cancelled: 'Cancelling...',
 }
 
-function useElapsedTimer(isRunning) {
+function useElapsedTimer(isRunning, startedAt, finishedAt) {
   const [elapsed, setElapsed] = useState(0)
-  const startRef = useRef(null)
 
   useEffect(() => {
-    if (isRunning) {
-      startRef.current = Date.now()
-      setElapsed(0)
+    // If we have both start and finish, show final duration (static)
+    if (startedAt && finishedAt) {
+      const start = new Date(startedAt).getTime()
+      const end = new Date(finishedAt).getTime()
+      setElapsed(Math.max(0, Math.floor((end - start) / 1000)))
+      return
+    }
+
+    // If running with a known start time, count from that
+    if (isRunning && startedAt) {
+      const start = new Date(startedAt).getTime()
+      setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
       const interval = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - startRef.current) / 1000))
+        setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
       }, 1000)
       return () => clearInterval(interval)
     }
-  }, [isRunning])
+
+    // If running with no start time, fall back to counting from now
+    if (isRunning) {
+      const start = Date.now()
+      setElapsed(0)
+      const interval = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - start) / 1000))
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+
+    setElapsed(0)
+  }, [isRunning, startedAt, finishedAt])
 
   return elapsed
 }
@@ -56,15 +76,16 @@ function formatElapsed(seconds) {
  * Props:
  *   status    – one of: pending, downloading, transcribing, processing, ready, error
  *   compact   – if true, renders a smaller version for cards (default false)
- *   startedAt – optional ISO timestamp for when processing started (for accurate timer)
+ *   startedAt  – optional ISO timestamp for when processing started (from first processing log)
+ *   finishedAt – optional ISO timestamp for when processing finished (from last processing log)
  */
-export default function ProcessingProgress({ status = 'pending', compact = false, startedAt }) {
+export default function ProcessingProgress({ status = 'pending', compact = false, startedAt, finishedAt }) {
   const currentIdx = STATUS_INDEX[status] ?? -1
   const isError = status === 'error'
   const isActive = !isError && status !== 'pending' && status !== 'ready'
   const isDone = status === 'ready'
 
-  const elapsed = useElapsedTimer(isActive)
+  const elapsed = useElapsedTimer(isActive, startedAt, isDone ? finishedAt : null)
 
   // Bar fill percentage
   const pct = isDone ? 100 : isError ? 0 : Math.max(0, ((currentIdx + 0.5) / STEPS.length) * 100)
@@ -91,7 +112,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             {STATUS_MESSAGES[status]}
           </span>
           <div className="flex items-center gap-2">
-            {isActive && (
+            {(isActive || (isDone && elapsed > 0)) && (
               <span className="text-xs text-gray-500 tabular-nums font-mono">
                 {formatElapsed(elapsed)}
               </span>
@@ -195,7 +216,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
           {STATUS_MESSAGES[status]}
         </span>
         <div className="flex items-center gap-3">
-          {isActive && (
+          {(isActive || (isDone && elapsed > 0)) && (
             <span className="text-sm text-gray-400 tabular-nums font-mono">
               {formatElapsed(elapsed)}
             </span>

@@ -47,7 +47,7 @@ podcast-app/
 │   └── index.css
 ├── supabase/
 │   ├── migrations/        # SQL migrations
-│   └── functions/         # Edge Functions (transcribe, embed, chat)
+│   └── functions/         # Edge Functions (process-podcast, chat)
 ├── public/
 ├── CLAUDE.md
 ├── package.json
@@ -75,7 +75,7 @@ podcast-app/
 - `channel` (text, nullable)
 - `duration_seconds` (int, nullable)
 - `thumbnail_url` (text, nullable)
-- `status` (text) — pending | downloading | transcribing | processing | ready | error
+- `status` (text) — pending | downloading | transcribing | processing | ready | error | cancelled
 - `error_message` (text, nullable)
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
@@ -91,7 +91,7 @@ podcast-app/
 - `id` (uuid, PK)
 - `podcast_id` (uuid, FK → podcasts)
 - `full_text` (text)
-- `segments` (jsonb) — timestamped segments from Deepgram
+- `segments` (jsonb) — timestamped segments from OpenAI Whisper
 - `word_count` (int)
 - `created_at` (timestamptz)
 
@@ -131,49 +131,53 @@ podcast-app/
 **processing_logs**
 - `id` (uuid, PK)
 - `podcast_id` (uuid, FK → podcasts)
-- `step` (text) — downloading | transcribing | processing | ready | error
+- `step` (text) — downloading | transcribing | processing | ready | error | cancelled
 - `message` (text)
 - `created_at` (timestamptz)
 
 ## Development Phases
 
-### Phase 1 — Foundation (MVP)
-- [ ] Project scaffolding (React + Vite + Tailwind + Supabase client)
-- [ ] Supabase project setup (tables, pgvector extension, RLS policies)
-- [ ] Knowledge base CRUD (create, list, rename, delete)
-- [ ] Add podcast by YouTube URL (metadata fetch via oEmbed API)
-- [ ] Basic UI: knowledge base list → podcast list → detail view
+### Phase 1 — Foundation (MVP) ✅
+- [x] Project scaffolding (React + Vite + Tailwind + Supabase client)
+- [x] Supabase project setup (tables, pgvector extension)
+- [x] Knowledge base CRUD (create, list, rename, delete)
+- [x] Add podcast by YouTube URL (metadata fetch via oEmbed API)
+- [x] Basic UI: two-tab home (Knowledge Bases + Podcasts) → podcast list → detail view
+- [x] Standalone podcasts section — podcasts exist independently, can be added to multiple KBs
+- [x] Podcast deduplication via `youtube_video_id` + junction table
 
-### Phase 2 — Transcription Pipeline
-- [ ] Supabase Edge Function: download audio from YouTube URL
-- [ ] Deepgram API integration for transcription
-- [ ] Chunking logic (time-based with sentence boundary respect)
-- [ ] Store chunks with timestamps in Supabase
-- [ ] Processing status UI (progress indicator per podcast)
+### Phase 2 — Processing Pipeline ✅
+- [x] Supabase Edge Function: download audio from YouTube (innertube ANDROID client)
+- [x] OpenAI Whisper transcription
+- [x] Chunking logic (time-based with sentence boundary respect)
+- [x] Store chunks with timestamps in Supabase
+- [x] Processing status UI (step tracker, progress bar, elapsed timer)
+- [x] Processing logs (terminal-style, polls every 3s)
+- [x] Cancel processing (sets DB status to 'cancelled', edge function polls and aborts)
 
-### Phase 3 — Embeddings & Search
-- [ ] Generate embeddings via OpenAI API
-- [ ] Store in pgvector column on chunks table
+### Phase 3 — Embeddings & Search ✅ (embeddings) / 🔲 (search UI)
+- [x] Generate embeddings via OpenAI text-embedding-3-small
+- [x] Store in pgvector column on chunks table
 - [ ] Semantic search within a knowledge base
 - [ ] Search UI with results showing podcast source + timestamp
 
-### Phase 4 — AI Insights
-- [ ] Claude API integration for summarization
-- [ ] Auto-generate insights per podcast (summary, topics, key points, entities)
+### Phase 4 — AI Insights ✅ (per-podcast) / 🔲 (KB-level)
+- [x] GPT-4o integration for summarization (via Edge Function)
+- [x] Auto-generate insights per podcast (summary, topics, key points, entities)
+- [x] Insights panel in UI
 - [ ] Knowledge base-level synthesis (themes across all podcasts)
-- [ ] Insights panel in UI
 
 ### Phase 5 — Chat (RAG)
-- [ ] RAG pipeline: query → vector search → context assembly → Claude response
+- [ ] RAG pipeline: query → vector search → context assembly → GPT-4o response
 - [ ] Source citations with timestamps
 - [ ] Conversation history per knowledge base
 - [ ] Chat UI component
 
 ### Phase 6 — Polish & Productize (Later)
-- [ ] Supabase Auth integration
+- [ ] Supabase Auth integration + RLS policies
 - [ ] Responsive design / mobile support
 - [ ] Export insights (markdown, PDF)
-- [ ] Vercel deployment
+- [x] Vercel deployment (auto-deploy on push to GitHub)
 - [ ] Usage limits / billing if multi-user
 
 ## Environment Variables
@@ -210,9 +214,31 @@ npm run build
 - **Edge Functions for API calls** — keeps API keys server-side, handles heavy processing off the client
 - **Supabase over custom backend** — no Express/FastAPI server to maintain, everything lives in Supabase
 
+## Processing Pipeline (Edge Function: `process-podcast`)
+
+The full pipeline runs server-side in a single Supabase Edge Function:
+
+1. **Download** — Extracts audio URL from YouTube via innertube API (ANDROID client), downloads audio
+2. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments
+3. **Chunk** — Splits transcript into overlapping chunks (~500 tokens, sentence boundary respect)
+4. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20)
+5. **Insights** — GPT-4o generates summary, topics, key points, and entities
+6. **Done** — Status set to `ready`
+
+Each step writes to the `processing_logs` table for real-time visibility. The function checks for `cancelled` status before each major step and aborts + cleans up partial data if cancelled.
+
+### Cancellation Flow
+
+- User clicks "Cancel" → frontend sets podcast status to `cancelled` in DB and inserts a log entry
+- Edge function polls `podcasts.status` before each step via `checkCancelled()`
+- If cancelled, `cleanup()` deletes partial transcripts/chunks/insights and resets status to `pending`
+- Edge function throws and exits
+
 ## Nick's Setup
 
 - **OS**: Windows (PowerShell)
 - **Project path**: `C:\Users\nlnic\Documents\Projects\podcast-app`
-- **Existing Supabase projects**: `briefforge-api` (id: vuxrphtwewgbnsracxom) — may create new project for this
-- **Budget**: Minimal API costs — Deepgram free tier, OpenAI embeddings ~$0.02/1M tokens, Claude API usage-based
+- **Supabase project**: `podcast-brain` (id: vxxmlieonejwyojenrsh)
+- **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
+- **GitHub branch**: `claude/podcast-knowledge-base-JqEHZ`
+- **Budget**: Minimal API costs — OpenAI embeddings ~$0.02/1M tokens, Whisper and GPT-4o usage-based

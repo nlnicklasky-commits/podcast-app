@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing } from '../services/processing'
+import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
@@ -19,17 +19,28 @@ export default function PodcastDetail() {
   const [loading, setLoading] = useState(true)
   const [showAddToKB, setShowAddToKB] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [processingStartedAt, setProcessingStartedAt] = useState(null)
+  const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
 
   const isStandalone = !kbId
 
   useEffect(() => {
     async function load() {
       try {
-        const [{ data: pod }, trans, kbs] = await Promise.all([
+        const [{ data: pod }, trans, kbs, logs] = await Promise.all([
           supabase.from('podcasts').select('*').eq('id', podcastId).limit(1),
           getTranscript(podcastId),
           getPodcastKBs(podcastId),
+          getProcessingLogs(podcastId),
         ])
+        // Derive start/finish timestamps from processing logs
+        if (logs && logs.length > 0) {
+          setProcessingStartedAt(logs[0].created_at)
+          const lastLog = logs[logs.length - 1]
+          if (['ready', 'error', 'cancelled'].includes(lastLog.step)) {
+            setProcessingFinishedAt(lastLog.created_at)
+          }
+        }
         if (!pod?.[0]) {
           navigate(kbId ? `/kb/${kbId}` : '/')
           return
@@ -58,14 +69,17 @@ export default function PodcastDetail() {
         const result = await getPodcastStatus(podcastId)
         if (result) {
           setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message }))
-          if (result.status === 'ready') {
-            // Refresh transcript and insights
-            const trans = await getTranscript(podcastId)
-            setTranscript(trans)
-            setProcessing(false)
-            clearInterval(poll)
-          }
-          if (result.status === 'error') {
+          if (result.status === 'ready' || result.status === 'error') {
+            // Refresh transcript/insights and get final log timestamp
+            const [trans, logs] = await Promise.all([
+              result.status === 'ready' ? getTranscript(podcastId) : Promise.resolve(null),
+              getProcessingLogs(podcastId),
+            ])
+            if (trans) setTranscript(trans)
+            if (logs && logs.length > 0) {
+              setProcessingStartedAt(logs[0].created_at)
+              setProcessingFinishedAt(logs[logs.length - 1].created_at)
+            }
             setProcessing(false)
             clearInterval(poll)
           }
@@ -81,6 +95,8 @@ export default function PodcastDetail() {
   async function handleProcess() {
     if (processing) return
     setProcessing(true)
+    setProcessingStartedAt(new Date().toISOString())
+    setProcessingFinishedAt(null)
     setPodcast((prev) => ({ ...prev, status: 'downloading', error_message: null }))
 
     try {
@@ -226,7 +242,7 @@ export default function PodcastDetail() {
 
       {/* Processing progress */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-        <ProcessingProgress status={podcast.status} />
+        <ProcessingProgress status={podcast.status} startedAt={processingStartedAt} finishedAt={processingFinishedAt} />
       </div>
 
       {/* Processing log */}
