@@ -74,6 +74,25 @@ export async function getTranscript(podcastId) {
 }
 
 /**
+ * Cancel processing for a podcast.
+ * Sets status to 'cancelled' — the edge function checks this and aborts.
+ */
+export async function cancelProcessing(podcastId) {
+  const { error } = await supabase
+    .from('podcasts')
+    .update({ status: 'cancelled', error_message: null })
+    .eq('id', podcastId)
+
+  if (error) throw error
+
+  await supabase.from('processing_logs').insert({
+    podcast_id: podcastId,
+    step: 'cancelled',
+    message: 'Processing cancelled by user.',
+  })
+}
+
+/**
  * Get processing logs for a podcast (ordered by time)
  */
 export async function getProcessingLogs(podcastId) {

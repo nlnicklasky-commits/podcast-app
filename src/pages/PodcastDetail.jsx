@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getInsights, getTranscript, processPodcast, getPodcastStatus } from '../services/processing'
+import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
@@ -93,6 +93,16 @@ export default function PodcastDetail() {
     }
   }
 
+  async function handleCancel() {
+    try {
+      await cancelProcessing(podcastId)
+      setPodcast((prev) => ({ ...prev, status: 'pending', error_message: null }))
+      setProcessing(false)
+    } catch (err) {
+      console.error('Cancel failed:', err)
+    }
+  }
+
   if (loading) {
     return <div className="animate-pulse text-gray-400 py-20 text-center">Loading...</div>
   }
@@ -168,6 +178,14 @@ export default function PodcastDetail() {
                 } disabled:opacity-50`}
               >
                 {processing ? 'Starting...' : podcast.status === 'error' ? 'Retry Processing' : 'Process Podcast'}
+              </button>
+            )}
+            {isActive && (
+              <button
+                onClick={handleCancel}
+                className="text-sm px-4 py-1.5 font-medium rounded-lg bg-white/5 border border-white/10 hover:border-red-500/50 text-gray-300 hover:text-red-400 transition-colors"
+              >
+                Cancel
               </button>
             )}
             <a

@@ -7,6 +7,7 @@ const STEP_COLORS = {
   processing: 'text-indigo-400',
   ready: 'text-green-400',
   error: 'text-red-400',
+  cancelled: 'text-yellow-400',
 }
 
 export default function ProcessingLog({ podcastId, status }) {

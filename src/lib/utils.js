@@ -32,4 +32,5 @@ export const statusColors = {
   processing: 'bg-indigo-500/20 text-indigo-400',
   ready: 'bg-green-500/20 text-green-400',
   error: 'bg-red-500/20 text-red-400',
+  cancelled: 'bg-yellow-500/20 text-yellow-400',
 }

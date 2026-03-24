@@ -23,6 +23,7 @@ const STATUS_MESSAGES = {
   processing: 'Generating embeddings & insights...',
   ready: 'All done!',
   error: 'Something went wrong',
+  cancelled: 'Cancelling...',
 }
 
 function useElapsedTimer(isRunning) {
