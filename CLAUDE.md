@@ -1,184 +1,207 @@
-# CLAUDE.md - Project Instructions for AI Assistants
+# CLAUDE.md — Podcast Knowledge Base
 
-## Project Overview
+## Vision
 
-This is a **Podcast Knowledge Base** application - a personal "second brain" for podcast content. Users can add YouTube podcast URLs, and the system automatically downloads, transcribes, chunks, and embeds the content for semantic search.
+A personal "second brain" for podcast content. Create **knowledge bases** around topics, fill them with podcasts, and the system extracts insights, themes, and key points — then lets you ask questions across everything using an LLM with full source citations.
+
+### Core Concept
+
+- A **knowledge base** is a collection of podcasts grouped by topic (e.g., "AI Startups", "Health & Longevity", "Marketing Tactics")
+- Add YouTube podcast URLs to a knowledge base
+- System automatically: downloads audio → transcribes → chunks → embeds → extracts insights
+- Each knowledge base has its own chat interface where you can ask questions and get LLM-powered answers grounded in the actual podcast content
+- Cross-podcast synthesis: compare viewpoints, find agreements/disagreements, surface patterns
+
+### Who It's For
+
+Built for Nick (personal use first), with potential to productize later. Architecture should support multi-user auth down the road but doesn't need it yet.
 
 ## Tech Stack
 
-- **Backend**: Python 3.11+ with FastAPI
-- **Database**: SQLite (metadata) + ChromaDB (vectors)
-- **Transcription**: OpenAI Whisper (local, "base" model)
-- **Embeddings**: sentence-transformers (all-MiniLM-L6-v2)
-- **LLM**: Anthropic Claude API (for Phase 2+)
-- **Frontend**: React 18 + Vite + Tailwind CSS
+- **Frontend**: React 18 + Vite + Tailwind CSS + React Router
+- **Backend/Database**: Supabase (Postgres, Auth, Edge Functions, Storage)
+- **Transcription**: Deepgram API (fast, accurate, no local ML setup)
+- **Embeddings**: OpenAI `text-embedding-3-small` via Supabase `pgvector`
+- **LLM**: Anthropic Claude API (for chat, summarization, insight extraction)
+- **Deployment**: Vercel (frontend) — later
 
-## Quick Commands
+### Why This Stack
 
-```bash
-# Setup (first time)
-make setup
-
-# Run development servers (backend + frontend)
-make dev
-
-# Run backend only (port 8000)
-make dev-backend
-
-# Run frontend only (port 5173)
-make dev-frontend
-
-# Run tests
-make test
-
-# Clean data files
-make clean-data
-```
+- No Python, no virtual environments — entire stack is JavaScript
+- Supabase handles DB, auth, storage, and vector search (pgvector) in one place
+- Nick already uses Supabase for happened-live, so familiar territory
+- Deepgram API replaces local Whisper — better accuracy, no GPU needed, works on Windows
+- Edge Functions handle API calls to Deepgram/Claude server-side (keeps keys safe)
 
 ## Project Structure
 
 ```
 podcast-app/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── config.py            # Pydantic settings
-│   │   ├── dependencies.py      # Shared dependencies
-│   │   ├── routers/             # API endpoints
-│   │   │   ├── podcasts.py      # CRUD for podcasts
-│   │   │   ├── search.py        # Semantic search
-│   │   │   └── jobs.py          # Job status
-│   │   ├── services/            # Business logic
-│   │   │   ├── downloader.py    # yt-dlp wrapper
-│   │   │   ├── transcriber.py   # Whisper integration
-│   │   │   ├── chunker.py       # Text chunking
-│   │   │   ├── embedder.py      # Embedding generation
-│   │   │   └── vector_store.py  # ChromaDB operations
-│   │   ├── models/
-│   │   │   ├── database.py      # SQLAlchemy models
-│   │   │   └── schemas.py       # Pydantic schemas
-│   │   └── workers/
-│   │       └── pipeline.py      # Background processing
-│   ├── tests/
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/          # React components
-│   │   ├── pages/               # Page components
-│   │   ├── hooks/               # Custom React hooks
-│   │   └── services/api.js      # API client
-│   ├── package.json
-│   └── vite.config.js
-├── data/                        # Gitignored data storage
-│   ├── audio/                   # Downloaded audio files
-│   ├── chroma/                  # ChromaDB persistence
-│   └── podcasts.db              # SQLite database
-└── scripts/
-    └── init_db.py               # Database initialization
+├── src/
+│   ├── components/        # Reusable UI components
+│   ├── pages/             # Route-level page components
+│   ├── hooks/             # Custom React hooks
+│   ├── lib/               # Supabase client, utilities
+│   ├── services/          # API service layer
+│   ├── App.jsx
+│   ├── main.jsx
+│   └── index.css
+├── supabase/
+│   ├── migrations/        # SQL migrations
+│   └── functions/         # Edge Functions (transcribe, embed, chat)
+├── public/
+├── CLAUDE.md
+├── package.json
+├── vite.config.js
+├── tailwind.config.js
+└── postcss.config.js
 ```
 
-## Key Files to Know
+## Database Schema (Supabase Postgres)
 
-| File | Purpose |
-|------|---------|
-| `backend/app/main.py` | FastAPI app setup, CORS, routers |
-| `backend/app/config.py` | All configuration via env vars |
-| `backend/app/workers/pipeline.py` | Main processing pipeline |
-| `backend/app/services/vector_store.py` | ChromaDB search operations |
-| `frontend/src/services/api.js` | API client for frontend |
-| `frontend/src/hooks/usePodcasts.js` | React hooks for podcast state |
+### Tables
 
-## Database Schema
+**knowledge_bases**
+- `id` (uuid, PK)
+- `name` (text) — e.g., "AI Startups"
+- `description` (text, nullable)
+- `created_at` (timestamptz)
+- `updated_at` (timestamptz)
 
-**Main Tables:**
-- `podcasts` - Podcast metadata (title, channel, status, etc.)
-- `transcripts` - Full transcripts with segments JSON
-- `chunks` - Individual chunks for vector search
-- `jobs` - Processing job status tracking
-- `insights` - AI-generated summaries (Phase 2)
-- `conversations` / `messages` - Chat history (Phase 3)
+**podcasts**
+- `id` (uuid, PK)
+- `knowledge_base_id` (uuid, FK → knowledge_bases)
+- `url` (text) — YouTube URL
+- `title` (text, nullable)
+- `channel` (text, nullable)
+- `duration_seconds` (int, nullable)
+- `thumbnail_url` (text, nullable)
+- `status` (text) — pending | downloading | transcribing | processing | ready | error
+- `error_message` (text, nullable)
+- `created_at` (timestamptz)
+- `updated_at` (timestamptz)
 
-## API Endpoints
+**transcripts**
+- `id` (uuid, PK)
+- `podcast_id` (uuid, FK → podcasts)
+- `full_text` (text)
+- `segments` (jsonb) — timestamped segments from Deepgram
+- `word_count` (int)
+- `created_at` (timestamptz)
 
-```
-POST   /api/podcasts              # Add podcast by URL
-GET    /api/podcasts              # List all (paginated)
-GET    /api/podcasts/{id}         # Get details + transcript
-DELETE /api/podcasts/{id}         # Remove podcast
+**chunks**
+- `id` (uuid, PK)
+- `podcast_id` (uuid, FK → podcasts)
+- `knowledge_base_id` (uuid, FK → knowledge_bases)
+- `text` (text)
+- `start_time` (float, nullable)
+- `end_time` (float, nullable)
+- `token_count` (int)
+- `embedding` (vector(1536)) — pgvector
+- `created_at` (timestamptz)
 
-POST   /api/search                # Semantic search
-GET    /api/jobs/{id}             # Check job status
-```
+**insights**
+- `id` (uuid, PK)
+- `podcast_id` (uuid, FK → podcasts)
+- `summary` (text)
+- `topics` (jsonb) — extracted topics
+- `key_points` (jsonb) — bullet points
+- `entities` (jsonb) — people, companies, etc.
+- `created_at` (timestamptz)
+
+**conversations**
+- `id` (uuid, PK)
+- `knowledge_base_id` (uuid, FK → knowledge_bases)
+- `title` (text, nullable)
+- `created_at` (timestamptz)
+
+**messages**
+- `id` (uuid, PK)
+- `conversation_id` (uuid, FK → conversations)
+- `role` (text) — user | assistant
+- `content` (text)
+- `sources` (jsonb, nullable) — cited chunks with timestamps
+- `created_at` (timestamptz)
 
 ## Development Phases
 
-### Phase 1 (Current - MVP)
-- [x] YouTube audio download
-- [x] Whisper transcription
-- [x] Time-based chunking
-- [x] Embedding + ChromaDB storage
-- [x] Semantic search
-- [x] Basic React UI
+### Phase 1 — Foundation (MVP)
+- [ ] Project scaffolding (React + Vite + Tailwind + Supabase client)
+- [ ] Supabase project setup (tables, pgvector extension, RLS policies)
+- [ ] Knowledge base CRUD (create, list, rename, delete)
+- [ ] Add podcast by YouTube URL (metadata fetch via oEmbed API)
+- [ ] Basic UI: knowledge base list → podcast list → detail view
 
-### Phase 2 (Knowledge Extraction)
-- [ ] Claude integration for summarization
-- [ ] Topic/entity extraction
-- [ ] Smart chunking with sentence boundaries
+### Phase 2 — Transcription Pipeline
+- [ ] Supabase Edge Function: download audio from YouTube URL
+- [ ] Deepgram API integration for transcription
+- [ ] Chunking logic (time-based with sentence boundary respect)
+- [ ] Store chunks with timestamps in Supabase
+- [ ] Processing status UI (progress indicator per podcast)
+
+### Phase 3 — Embeddings & Search
+- [ ] Generate embeddings via OpenAI API
+- [ ] Store in pgvector column on chunks table
+- [ ] Semantic search within a knowledge base
+- [ ] Search UI with results showing podcast source + timestamp
+
+### Phase 4 — AI Insights
+- [ ] Claude API integration for summarization
+- [ ] Auto-generate insights per podcast (summary, topics, key points, entities)
+- [ ] Knowledge base-level synthesis (themes across all podcasts)
 - [ ] Insights panel in UI
 
-### Phase 3 (Chat Interface)
-- [ ] RAG pipeline for Q&A
-- [ ] Conversation management
-- [ ] Source citations
+### Phase 5 — Chat (RAG)
+- [ ] RAG pipeline: query → vector search → context assembly → Claude response
+- [ ] Source citations with timestamps
+- [ ] Conversation history per knowledge base
 - [ ] Chat UI component
 
-## Common Tasks
-
-### Adding a New API Endpoint
-
-1. Create/modify router in `backend/app/routers/`
-2. Add Pydantic schemas in `backend/app/models/schemas.py`
-3. Register router in `backend/app/main.py` if new file
-4. Add frontend API method in `frontend/src/services/api.js`
-
-### Adding a New Service
-
-1. Create file in `backend/app/services/`
-2. Import and use in `backend/app/workers/pipeline.py` or routers
-
-### Modifying Database Schema
-
-1. Update models in `backend/app/models/database.py`
-2. Run `python scripts/init_db.py` to recreate tables (dev only)
-3. For production, use Alembic migrations
+### Phase 6 — Polish & Productize (Later)
+- [ ] Supabase Auth integration
+- [ ] Responsive design / mobile support
+- [ ] Export insights (markdown, PDF)
+- [ ] Vercel deployment
+- [ ] Usage limits / billing if multi-user
 
 ## Environment Variables
 
-Key settings in `backend/.env`:
-- `ANTHROPIC_API_KEY` - Required for Phase 2+
-- `WHISPER_MODEL` - tiny/base/small/medium/large
-- `WHISPER_DEVICE` - cpu/cuda/mps
-- `MAX_CONCURRENT_JOBS` - Parallel processing limit
+```
+# Supabase (frontend — safe to expose)
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 
-## Testing
-
-```bash
-# Run all tests
-cd backend && pytest
-
-# Run with verbose output
-cd backend && pytest -v
-
-# Run specific test file
-cd backend && pytest tests/test_api.py
+# API Keys (server-side only — used in Supabase Edge Functions, NOT in frontend)
+DEEPGRAM_API_KEY=your-deepgram-key
+OPENAI_API_KEY=your-openai-key
+ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
-## Troubleshooting
+## Quick Commands
 
-**Whisper model download**: First transcription may be slow as it downloads the model.
+```bash
+# Install dependencies
+npm install
 
-**ChromaDB errors**: Try `make clean-data` and restart.
+# Run dev server (port 5173)
+npm run dev
 
-**CORS issues**: Ensure frontend URL matches `FRONTEND_URL` in backend/.env.
+# Build for production
+npm run build
+```
 
-**ffmpeg missing**: Install with `apt install ffmpeg` or `brew install ffmpeg`.
+## Key Decisions
+
+- **No Python** — entire stack is JavaScript to avoid venv/pip issues on Windows
+- **Deepgram over local Whisper** — API call vs. running ML models locally. Costs ~$0.0043/min but worth it for simplicity and accuracy. Free tier = 45 hrs/month
+- **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
+- **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
+- **Edge Functions for API calls** — keeps API keys server-side, handles heavy processing off the client
+- **Supabase over custom backend** — no Express/FastAPI server to maintain, everything lives in Supabase
+
+## Nick's Setup
+
+- **OS**: Windows (PowerShell)
+- **Project path**: `C:\Users\nlnic\Documents\Projects\podcast-app`
+- **Existing Supabase projects**: `briefforge-api` (id: vuxrphtwewgbnsracxom) — may create new project for this
+- **Budget**: Minimal API costs — Deepgram free tier, OpenAI embeddings ~$0.02/1M tokens, Claude API usage-based
