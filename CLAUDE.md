@@ -18,20 +18,19 @@ Built for Nick (personal use first), with potential to productize later. Archite
 
 ## Tech Stack
 
-- **Frontend**: React 18 + Vite + Tailwind CSS + React Router
+- **Frontend**: React 19 + Vite 8 + Tailwind CSS 4 + React Router 7
 - **Backend/Database**: Supabase (Postgres, Auth, Edge Functions, Storage)
-- **Transcription**: Deepgram API (fast, accurate, no local ML setup)
-- **Embeddings**: OpenAI `text-embedding-3-small` via Supabase `pgvector`
-- **LLM**: Anthropic Claude API (for chat, summarization, insight extraction)
-- **Deployment**: Vercel (frontend) — later
+- **AI/ML**: OpenAI only — Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights/chat)
+- **Deployment**: Vercel (frontend, auto-deploy on push to GitHub)
 
 ### Why This Stack
 
 - No Python, no virtual environments — entire stack is JavaScript
 - Supabase handles DB, auth, storage, and vector search (pgvector) in one place
 - Nick already uses Supabase for happened-live, so familiar territory
-- Deepgram API replaces local Whisper — better accuracy, no GPU needed, works on Windows
-- Edge Functions handle API calls to Deepgram/Claude server-side (keeps keys safe)
+- OpenAI handles everything: Whisper for transcription, embeddings, GPT-4o for insights and chat
+- Edge Functions handle API calls to OpenAI server-side (keeps keys safe)
+- Single API key (OPENAI_API_KEY) simplifies configuration
 
 ## Project Structure
 
@@ -129,6 +128,13 @@ podcast-app/
 - `sources` (jsonb, nullable) — cited chunks with timestamps
 - `created_at` (timestamptz)
 
+**processing_logs**
+- `id` (uuid, PK)
+- `podcast_id` (uuid, FK → podcasts)
+- `step` (text) — downloading | transcribing | processing | ready | error
+- `message` (text)
+- `created_at` (timestamptz)
+
 ## Development Phases
 
 ### Phase 1 — Foundation (MVP)
@@ -177,10 +183,8 @@ podcast-app/
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
-# API Keys (server-side only — used in Supabase Edge Functions, NOT in frontend)
-DEEPGRAM_API_KEY=your-deepgram-key
+# API Keys (server-side only — set as Supabase secrets, NOT in frontend)
 OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
 ## Quick Commands
@@ -199,9 +203,10 @@ npm run build
 ## Key Decisions
 
 - **No Python** — entire stack is JavaScript to avoid venv/pip issues on Windows
-- **Deepgram over local Whisper** — API call vs. running ML models locally. Costs ~$0.0043/min but worth it for simplicity and accuracy. Free tier = 45 hrs/month
+- **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), and insights/chat (GPT-4o). Simpler than juggling Deepgram + Anthropic
 - **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
 - **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
+- **Standalone Podcasts section** — podcasts exist independently and can be added to multiple KBs via junction table
 - **Edge Functions for API calls** — keeps API keys server-side, handles heavy processing off the client
 - **Supabase over custom backend** — no Express/FastAPI server to maintain, everything lives in Supabase
 

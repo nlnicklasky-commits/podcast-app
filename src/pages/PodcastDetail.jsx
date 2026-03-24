@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getInsights, getTranscript } from '../services/processing'
+import { getInsights, getTranscript, processPodcast, getPodcastStatus } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
+import ProcessingLog from '../components/ProcessingLog'
 import { formatDate, statusColors } from '../lib/utils'
 
 export default function PodcastDetail() {
@@ -17,6 +18,7 @@ export default function PodcastDetail() {
   const [activeTab, setActiveTab] = useState('insights')
   const [loading, setLoading] = useState(true)
   const [showAddToKB, setShowAddToKB] = useState(false)
+  const [processing, setProcessing] = useState(false)
 
   const isStandalone = !kbId
 
@@ -45,6 +47,52 @@ export default function PodcastDetail() {
     load()
   }, [podcastId, kbId, navigate])
 
+  // Poll for status changes when processing
+  useEffect(() => {
+    if (!podcast) return
+    const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
+    if (!isActive && !processing) return
+
+    const poll = setInterval(async () => {
+      try {
+        const result = await getPodcastStatus(podcastId)
+        if (result) {
+          setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message }))
+          if (result.status === 'ready') {
+            // Refresh transcript and insights
+            const trans = await getTranscript(podcastId)
+            setTranscript(trans)
+            setProcessing(false)
+            clearInterval(poll)
+          }
+          if (result.status === 'error') {
+            setProcessing(false)
+            clearInterval(poll)
+          }
+        }
+      } catch {
+        // keep polling
+      }
+    }, 3000)
+
+    return () => clearInterval(poll)
+  }, [podcast?.status, processing, podcastId])
+
+  async function handleProcess() {
+    if (processing) return
+    setProcessing(true)
+    setPodcast((prev) => ({ ...prev, status: 'downloading', error_message: null }))
+
+    try {
+      processPodcast(podcastId).catch((err) => {
+        console.error('Processing failed:', err)
+      })
+    } catch (err) {
+      console.error(err)
+      setProcessing(false)
+    }
+  }
+
   if (loading) {
     return <div className="animate-pulse text-gray-400 py-20 text-center">Loading...</div>
   }
@@ -52,6 +100,8 @@ export default function PodcastDetail() {
   if (!podcast) return null
 
   const statusClass = statusColors[podcast.status] || statusColors.pending
+  const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
+  const canProcess = podcast.status === 'pending' || podcast.status === 'error'
   const tabs = [
     { id: 'insights', label: 'Insights' },
     { id: 'transcript', label: 'Transcript' },
@@ -107,6 +157,19 @@ export default function PodcastDetail() {
             <span className="text-xs text-gray-500">{formatDate(podcast.created_at)}</span>
           </div>
           <div className="flex items-center gap-3 mt-2">
+            {canProcess && (
+              <button
+                onClick={handleProcess}
+                disabled={processing}
+                className={`text-sm px-4 py-1.5 font-medium rounded-lg transition-colors ${
+                  podcast.status === 'error'
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white'
+                } disabled:opacity-50`}
+              >
+                {processing ? 'Starting...' : podcast.status === 'error' ? 'Retry Processing' : 'Process Podcast'}
+              </button>
+            )}
             <a
               href={podcast.url}
               target="_blank"
@@ -137,6 +200,9 @@ export default function PodcastDetail() {
               ))}
             </div>
           )}
+          {podcast.error_message && podcast.status === 'error' && (
+            <p className="text-xs text-red-400 mt-2">{podcast.error_message}</p>
+          )}
         </div>
       </div>
 
@@ -144,6 +210,9 @@ export default function PodcastDetail() {
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
         <ProcessingProgress status={podcast.status} />
       </div>
+
+      {/* Processing log */}
+      <ProcessingLog podcastId={podcastId} status={podcast.status} />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/10 mb-6">

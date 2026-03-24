@@ -5,7 +5,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 /**
  * Trigger the full processing pipeline for a podcast.
  * Calls the process-podcast Edge Function which handles:
- * YouTube audio extraction → Deepgram transcription → chunking → embeddings → insights
+ * YouTube audio extraction → OpenAI Whisper transcription → chunking → embeddings → insights
  */
 export async function processPodcast(podcastId) {
   const { data: { session } } = await supabase.auth.getSession()
@@ -71,4 +71,18 @@ export async function getTranscript(podcastId) {
 
   if (error) throw error
   return data?.[0] || null
+}
+
+/**
+ * Get processing logs for a podcast (ordered by time)
+ */
+export async function getProcessingLogs(podcastId) {
+  const { data, error } = await supabase
+    .from('processing_logs')
+    .select('*')
+    .eq('podcast_id', podcastId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+  return data || []
 }
