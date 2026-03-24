@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getInsights, getTranscript } from '../services/processing'
+import { getPodcastKBs } from '../services/podcasts'
 import InsightsPanel from '../components/InsightsPanel'
+import AddToKBModal from '../components/AddToKBModal'
 import { formatDate, statusColors } from '../lib/utils'
 
 export default function PodcastDetail() {
@@ -10,25 +12,31 @@ export default function PodcastDetail() {
   const navigate = useNavigate()
   const [podcast, setPodcast] = useState(null)
   const [transcript, setTranscript] = useState(null)
+  const [linkedKBs, setLinkedKBs] = useState([])
   const [activeTab, setActiveTab] = useState('insights')
   const [loading, setLoading] = useState(true)
+  const [showAddToKB, setShowAddToKB] = useState(false)
+
+  const isStandalone = !kbId
 
   useEffect(() => {
     async function load() {
       try {
-        const [{ data: pod }, trans] = await Promise.all([
+        const [{ data: pod }, trans, kbs] = await Promise.all([
           supabase.from('podcasts').select('*').eq('id', podcastId).limit(1),
           getTranscript(podcastId),
+          getPodcastKBs(podcastId),
         ])
         if (!pod?.[0]) {
-          navigate(`/kb/${kbId}`)
+          navigate(kbId ? `/kb/${kbId}` : '/')
           return
         }
         setPodcast(pod[0])
         setTranscript(trans)
+        setLinkedKBs(kbs)
       } catch (err) {
         console.error(err)
-        navigate(`/kb/${kbId}`)
+        navigate(kbId ? `/kb/${kbId}` : '/')
       } finally {
         setLoading(false)
       }
@@ -57,14 +65,18 @@ export default function PodcastDetail() {
     return `${m}:${String(s).padStart(2, '0')}`
   }
 
+  function handleKBAdded(kb) {
+    setLinkedKBs((prev) => [...prev, kb])
+  }
+
   return (
     <div>
       {/* Breadcrumb */}
       <Link
-        to={`/kb/${kbId}`}
+        to={kbId ? `/kb/${kbId}` : '/'}
         className="text-sm text-gray-400 hover:text-white transition-colors mb-4 inline-block"
       >
-        ← Back to Knowledge Base
+        {kbId ? '← Back to Knowledge Base' : '← All Podcasts'}
       </Link>
 
       {/* Header */}
@@ -80,7 +92,7 @@ export default function PodcastDetail() {
             🎙️
           </div>
         )}
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">
             {podcast.title || 'Untitled Podcast'}
           </h1>
@@ -93,14 +105,37 @@ export default function PodcastDetail() {
             </span>
             <span className="text-xs text-gray-500">{formatDate(podcast.created_at)}</span>
           </div>
-          <a
-            href={podcast.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-purple-400 hover:text-purple-300 mt-2 inline-block"
-          >
-            Open on YouTube →
-          </a>
+          <div className="flex items-center gap-3 mt-2">
+            <a
+              href={podcast.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-purple-400 hover:text-purple-300"
+            >
+              Open on YouTube →
+            </a>
+            <button
+              onClick={() => setShowAddToKB(true)}
+              className="text-sm px-3 py-1 bg-white/5 border border-white/10 hover:border-purple-500/50 text-gray-300 hover:text-white rounded-lg transition-colors"
+            >
+              + Add to Knowledge Base
+            </button>
+          </div>
+          {/* Show linked KBs */}
+          {linkedKBs.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="text-xs text-gray-500">In:</span>
+              {linkedKBs.map((kb) => (
+                <Link
+                  key={kb.id}
+                  to={`/kb/${kb.id}`}
+                  className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full hover:bg-purple-500/30 transition-colors"
+                >
+                  {kb.name}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -163,6 +198,15 @@ export default function PodcastDetail() {
             </p>
           )}
         </div>
+      )}
+
+      {showAddToKB && (
+        <AddToKBModal
+          podcastId={podcastId}
+          existingKBIds={linkedKBs.map((kb) => kb.id)}
+          onClose={() => setShowAddToKB(false)}
+          onAdded={handleKBAdded}
+        />
       )}
     </div>
   )

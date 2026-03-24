@@ -68,9 +68,9 @@ podcast-app/
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
 
-**podcasts**
+**podcasts** (KB-independent — one row per unique YouTube video)
 - `id` (uuid, PK)
-- `knowledge_base_id` (uuid, FK → knowledge_bases)
+- `youtube_video_id` (text, unique) — extracted from URL, used for deduplication
 - `url` (text) — YouTube URL
 - `title` (text, nullable)
 - `channel` (text, nullable)
@@ -81,6 +81,13 @@ podcast-app/
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
 
+**knowledge_base_podcasts** (junction table — many-to-many)
+- `id` (uuid, PK)
+- `knowledge_base_id` (uuid, FK → knowledge_bases)
+- `podcast_id` (uuid, FK → podcasts)
+- `created_at` (timestamptz)
+- UNIQUE(knowledge_base_id, podcast_id)
+
 **transcripts**
 - `id` (uuid, PK)
 - `podcast_id` (uuid, FK → podcasts)
@@ -89,10 +96,9 @@ podcast-app/
 - `word_count` (int)
 - `created_at` (timestamptz)
 
-**chunks**
+**chunks** (KB-independent — shared across KBs via podcast linkage)
 - `id` (uuid, PK)
 - `podcast_id` (uuid, FK → podcasts)
-- `knowledge_base_id` (uuid, FK → knowledge_bases)
 - `text` (text)
 - `start_time` (float, nullable)
 - `end_time` (float, nullable)

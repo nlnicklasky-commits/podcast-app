@@ -28,7 +28,11 @@ export default function AddPodcastModal({ onClose, onAdd }) {
 
     setLoading(true)
     try {
-      await onAdd(url.trim())
+      const result = await onAdd(url.trim())
+      if (result?.alreadyProcessed) {
+        // Brief flash so user knows it was instant
+        setError('')
+      }
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to add podcast')
@@ -55,6 +59,9 @@ export default function AddPodcastModal({ onClose, onAdd }) {
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
               autoFocus
             />
+            <p className="text-xs text-gray-500 mt-1">
+              If this podcast was already added elsewhere, it won't need to be re-processed.
+            </p>
             {error && (
               <p className="text-red-400 text-sm mt-1">{error}</p>
             )}

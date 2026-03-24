@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
-import { listPodcasts, addPodcast, deletePodcast } from '../services/podcasts'
+import { listPodcasts, addPodcast, removePodcastFromKB } from '../services/podcasts'
 import AddPodcastModal from '../components/AddPodcastModal'
 import PodcastCard from '../components/PodcastCard'
 import ChatPanel from '../components/ChatPanel'
@@ -37,13 +37,14 @@ export default function KnowledgeBase() {
   useEffect(() => { load() }, [id])
 
   async function handleAddPodcast(url) {
-    const podcast = await addPodcast(id, url)
+    const { podcast, alreadyProcessed } = await addPodcast(id, url)
     setPodcasts((prev) => [podcast, ...prev])
+    return { alreadyProcessed }
   }
 
   async function handleDeletePodcast(podcastId) {
-    if (!confirm('Remove this podcast?')) return
-    await deletePodcast(podcastId)
+    if (!confirm('Remove this podcast from the knowledge base?')) return
+    await removePodcastFromKB(id, podcastId)
     setPodcasts((prev) => prev.filter((p) => p.id !== podcastId))
   }
 

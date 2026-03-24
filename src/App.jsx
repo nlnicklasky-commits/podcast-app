@@ -12,6 +12,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/kb/:id" element={<KnowledgeBase />} />
           <Route path="/kb/:kbId/podcast/:podcastId" element={<PodcastDetail />} />
+          <Route path="/podcast/:podcastId" element={<PodcastDetail />} />
         </Routes>
       </Layout>
     </BrowserRouter>

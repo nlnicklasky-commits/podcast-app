@@ -20,7 +20,7 @@ export default function Layout({ children }) {
               to="/"
               className="text-sm text-gray-400 hover:text-white transition-colors"
             >
-              ← All Knowledge Bases
+              ← Home
             </Link>
           )}
         </div>
