@@ -37,7 +37,7 @@ export async function processPodcast(podcastId) {
 export async function getPodcastStatus(podcastId) {
   const { data, error } = await supabase
     .from('podcasts')
-    .select('status, error_message')
+    .select('status, error_message, progress')
     .eq('id', podcastId)
     .limit(1)
 

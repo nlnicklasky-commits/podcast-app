@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 const STEPS = [
   { id: 'downloading', label: 'Download' },
@@ -26,11 +26,30 @@ const STATUS_MESSAGES = {
   cancelled: 'Cancelling...',
 }
 
+// Map step + sub-progress to overall bar percentage
+// downloading = 0–33%, transcribing = 33–66%, processing = 66–100%
+function calcOverallPct(status, stepProgress) {
+  const p = stepProgress || 0
+  switch (status) {
+    case 'downloading':
+      return Math.round((p / 100) * 33)
+    case 'transcribing':
+      // Whisper is a single API call — no granular progress.
+      // Pulse between 33-50% to show activity
+      return p >= 100 ? 66 : 33 + Math.round((p / 100) * 33)
+    case 'processing':
+      return 66 + Math.round((p / 100) * 34)
+    case 'ready':
+      return 100
+    default:
+      return 0
+  }
+}
+
 function useElapsedTimer(isRunning, startedAt, finishedAt) {
   const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
-    // If we have both start and finish, show final duration (static)
     if (startedAt && finishedAt) {
       const start = new Date(startedAt).getTime()
       const end = new Date(finishedAt).getTime()
@@ -38,7 +57,6 @@ function useElapsedTimer(isRunning, startedAt, finishedAt) {
       return
     }
 
-    // If running with a known start time, count from that
     if (isRunning && startedAt) {
       const start = new Date(startedAt).getTime()
       setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
@@ -48,7 +66,6 @@ function useElapsedTimer(isRunning, startedAt, finishedAt) {
       return () => clearInterval(interval)
     }
 
-    // If running with no start time, fall back to counting from now
     if (isRunning) {
       const start = Date.now()
       setElapsed(0)
@@ -74,12 +91,13 @@ function formatElapsed(seconds) {
  * Processing progress bar with step tracker and elapsed timer.
  *
  * Props:
- *   status    – one of: pending, downloading, transcribing, processing, ready, error
- *   compact   – if true, renders a smaller version for cards (default false)
- *   startedAt  – optional ISO timestamp for when processing started (from first processing log)
- *   finishedAt – optional ISO timestamp for when processing finished (from last processing log)
+ *   status     – one of: pending, downloading, transcribing, processing, ready, error
+ *   compact    – if true, renders a smaller version for cards (default false)
+ *   progress   – 0-100 sub-step progress from the DB (updated by edge function)
+ *   startedAt  – optional ISO timestamp for when processing started
+ *   finishedAt – optional ISO timestamp for when processing finished
  */
-export default function ProcessingProgress({ status = 'pending', compact = false, startedAt, finishedAt }) {
+export default function ProcessingProgress({ status = 'pending', compact = false, progress = 0, startedAt, finishedAt }) {
   const currentIdx = STATUS_INDEX[status] ?? -1
   const isError = status === 'error'
   const isActive = !isError && status !== 'pending' && status !== 'ready'
@@ -87,8 +105,20 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
   const elapsed = useElapsedTimer(isActive, startedAt, isDone ? finishedAt : null)
 
-  // Bar fill percentage
-  const pct = isDone ? 100 : isError ? 0 : Math.max(0, ((currentIdx + 0.5) / STEPS.length) * 100)
+  // Overall bar percentage based on real progress
+  const pct = isDone ? 100 : isError ? 0 : calcOverallPct(status, progress)
+
+  // Step-level progress text (e.g., "Downloading... 45%")
+  const stepPct = Math.round(progress || 0)
+  const showStepPct = isActive && stepPct > 0
+
+  // Status message with step progress
+  const statusMsg = STATUS_MESSAGES[status] || ''
+  const displayMsg = showStepPct && status === 'downloading'
+    ? `Downloading audio... ${stepPct}%`
+    : showStepPct && status === 'processing'
+      ? `Generating embeddings & insights... ${stepPct}%`
+      : statusMsg
 
   if (compact) {
     return (
@@ -109,7 +139,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
         {/* Status label */}
         <div className="flex items-center justify-between mt-1">
           <span className={`text-xs ${isError ? 'text-red-400' : 'text-gray-400'}`}>
-            {STATUS_MESSAGES[status]}
+            {displayMsg}
           </span>
           <div className="flex items-center gap-2">
             {(isActive || (isDone && elapsed > 0)) && (
@@ -119,7 +149,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             )}
             {isActive && (
               <span className="text-xs text-purple-400 tabular-nums">
-                {Math.round(pct)}%
+                {pct}%
               </span>
             )}
             {isDone && (
@@ -172,6 +202,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                   }`}
                 >
                   {step.label}
+                  {isCurrent && stepPct > 0 ? ` ${stepPct}%` : ''}
                 </span>
               </div>
 
@@ -180,10 +211,10 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                 <div className="flex-1 h-0.5 mx-2 mt-[-1rem] bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ease-out ${
-                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500 animate-pulse' : ''
+                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500' : ''
                     }`}
                     style={{
-                      width: isCompleted ? '100%' : isCurrent ? '50%' : '0%',
+                      width: isCompleted ? '100%' : isCurrent ? `${stepPct || 0}%` : '0%',
                     }}
                   />
                 </div>
@@ -202,7 +233,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
               : isDone
                 ? 'bg-green-500'
                 : 'bg-gradient-to-r from-purple-600 to-purple-400'
-          } ${isActive ? 'animate-progress-shimmer' : ''}`}
+          } ${isActive && status === 'transcribing' && stepPct === 0 ? 'animate-progress-shimmer' : ''}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -213,7 +244,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
           {isActive && (
             <span className="inline-block w-1.5 h-1.5 bg-purple-400 rounded-full mr-2 animate-pulse" />
           )}
-          {STATUS_MESSAGES[status]}
+          {displayMsg}
         </span>
         <div className="flex items-center gap-3">
           {(isActive || (isDone && elapsed > 0)) && (
@@ -222,7 +253,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             </span>
           )}
           <span className={`text-sm tabular-nums ${isDone ? 'text-green-400' : 'text-gray-400'}`}>
-            {Math.round(pct)}%
+            {pct}%
           </span>
         </div>
       </div>

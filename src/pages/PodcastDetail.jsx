@@ -68,7 +68,7 @@ export default function PodcastDetail() {
       try {
         const result = await getPodcastStatus(podcastId)
         if (result) {
-          setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message }))
+          setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message, progress: result.progress }))
           if (result.status === 'ready' || result.status === 'error') {
             // Refresh transcript/insights and get final log timestamp
             const [trans, logs] = await Promise.all([
@@ -87,7 +87,7 @@ export default function PodcastDetail() {
       } catch {
         // keep polling
       }
-    }, 3000)
+    }, 2000)
 
     return () => clearInterval(poll)
   }, [podcast?.status, processing, podcastId])
@@ -242,7 +242,7 @@ export default function PodcastDetail() {
 
       {/* Processing progress */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-        <ProcessingProgress status={podcast.status} startedAt={processingStartedAt} finishedAt={processingFinishedAt} />
+        <ProcessingProgress status={podcast.status} startedAt={processingStartedAt} finishedAt={processingFinishedAt} progress={podcast.progress} />
       </div>
 
       {/* Processing log */}

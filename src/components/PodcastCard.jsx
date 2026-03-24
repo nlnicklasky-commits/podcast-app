@@ -22,7 +22,7 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
           try {
             const status = await getPodcastStatus(podcast.id)
             if (status) {
-              onStatusChange(podcast.id, status.status, status.error_message)
+              onStatusChange(podcast.id, status.status, status.error_message, status.progress)
               if (status.status === 'ready' || status.status === 'error') {
                 clearInterval(poll)
                 setProcessing(false)
@@ -122,7 +122,7 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
 
       {/* Progress bar — shown during active processing */}
       {(isProcessing || podcast.status === 'ready') && (
-        <ProcessingProgress status={podcast.status} compact />
+        <ProcessingProgress status={podcast.status} compact progress={podcast.progress} />
       )}
 
       {podcast.error_message && podcast.status === 'error' && (

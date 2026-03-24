@@ -48,11 +48,11 @@ export default function KnowledgeBase() {
     setPodcasts((prev) => prev.filter((p) => p.id !== podcastId))
   }
 
-  function handleStatusChange(podcastId, status, errorMessage) {
+  function handleStatusChange(podcastId, status, errorMessage, progress) {
     setPodcasts((prev) =>
       prev.map((p) =>
         p.id === podcastId
-          ? { ...p, status, error_message: errorMessage }
+          ? { ...p, status, error_message: errorMessage, progress: progress || 0 }
           : p,
       ),
     )
