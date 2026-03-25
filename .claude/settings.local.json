@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(yt-dlp --version)",
+      "Bash(node scripts/download-audio.js b26cd36b-b24b-4b40-880d-0d5338050a29)"
+    ]
+  }
+}
