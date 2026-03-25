@@ -150,8 +150,8 @@ podcast-app/
 - [x] Podcast deduplication via `youtube_video_id` + junction table
 
 ### Phase 2 — Processing Pipeline ✅
-- [x] Local yt-dlp audio download + Supabase Storage upload (`scripts/download-audio.js`)
-- [x] Supabase Edge Function: transcription → chunking → embeddings → insights
+- [x] Audio download via Cobalt (Railway) — no local tools needed
+- [x] Supabase Edge Function: download → transcription → chunking → embeddings → insights
 - [x] OpenAI Whisper transcription
 - [x] Chunking logic (time-based with sentence boundary respect)
 - [x] Store chunks with timestamps in Supabase
@@ -208,13 +208,14 @@ npm run dev
 # Build for production
 npm run build
 
-# Process a podcast (download audio locally via yt-dlp, upload to Supabase Storage, trigger pipeline)
-npm run process -- <podcast_id>
+# Process a podcast (click "Process" in the UI, or trigger via edge function)
+# Audio is downloaded automatically via Cobalt (Railway) — no local tools needed
 ```
 
 ## Key Decisions
 
-- **No Python in the stack** — entire stack is JavaScript (yt-dlp is the one exception, used only as a CLI tool for YouTube audio extraction)
+- **No Python in the stack** — entire stack is JavaScript
+- **Cobalt on Railway for YouTube audio** — Cobalt (open-source) handles YouTube audio extraction server-side, eliminating the need for yt-dlp or any local tools
 - **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), and insights/chat (GPT-4o). Simpler than juggling Deepgram + Anthropic
 - **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
 - **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
@@ -224,37 +225,38 @@ npm run process -- <podcast_id>
 
 ## Processing Pipeline
 
-The pipeline is split between local execution and a Supabase Edge Function:
+Everything runs in the cloud — no local tools needed. Click "Process" in the UI and it just works.
 
-### Local Download (`scripts/download-audio.js`)
+### Edge Function (`process-podcast` v11)
 
-1. **Fetch** — Gets podcast record from Supabase (YouTube URL, video ID)
-2. **Download** — Uses yt-dlp to download smallest audio format (<25MB for Whisper limit)
-3. **Upload** — Uploads audio file to Supabase Storage (`podcast-audio` bucket)
-4. **Trigger** — Calls the `process-podcast` Edge Function with `audio_storage_path`
+The entire pipeline runs in a single Supabase Edge Function:
 
-YouTube's innertube API is completely broken (Proof of Origin token requirement blocks all client variants). yt-dlp handles this locally and the audio is transferred via Supabase Storage.
-
-### Edge Function (`process-podcast`)
-
-Picks up after audio is in Storage:
-
-1. **Download from Storage** — Fetches audio from `podcast-audio` bucket (0-30%)
-2. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments (30-55%)
-3. **Chunk** — Splits transcript into overlapping chunks (~500 tokens, sentence boundary respect) (55-60%)
-4. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20) (60-90%)
-5. **Insights** — GPT-4o generates summary, topics, key points, and entities (90-99%)
-6. **Done** — Status set to `ready`, progress = 100%, Storage audio file cleaned up
+1. **Download via Cobalt** — Calls Cobalt API (Railway) to get YouTube audio download URL, downloads the audio (0-15%)
+2. **Upload to Storage** — Uploads audio to Supabase Storage `podcast-audio` bucket as backup (15-30%)
+3. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments (30-55%)
+4. **Chunk** — Splits transcript into chunks (~500 tokens, sentence boundary respect) (55-60%)
+5. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20) (60-90%)
+6. **Insights** — GPT-4o generates summary, topics, key points, and entities (90-99%)
+7. **Done** — Status set to `ready`, progress = 100%, Storage audio file cleaned up
 
 Progress is written as actual 0-100% to `podcasts.progress` at each step. The frontend polls every 2 seconds and displays the real value.
 
 Each step writes to the `processing_logs` table for real-time visibility. The function checks for `cancelled` status before each major step and aborts + cleans up partial data if cancelled.
 
+### Cobalt (Railway)
+
+- **Service**: Cobalt v11 (`ghcr.io/imputnet/cobalt:11`) — open-source YouTube audio downloader
+- **Companion**: yt-session-generator (`ghcr.io/imputnet/yt-session-generator:webserver`) — generates YouTube auth tokens
+- **Railway project**: `stellar-love` (id: 62063223-f85f-44ab-9ff6-f4bbc5402337)
+- **Public URL**: `https://cobalt-production-8df9.up.railway.app`
+- **API**: `POST /` with `{"url": "...", "downloadMode": "audio", "audioFormat": "mp3"}`
+- **Why**: YouTube's innertube API is broken (Proof of Origin token requirement). Cobalt handles this server-side with yt-session-generator for authentication.
+
 ### Supabase Storage
 
 - **Bucket**: `podcast-audio` (private)
 - **RLS**: anon can INSERT, SELECT, UPDATE, DELETE; service_role has full access
-- Audio files are uploaded by the local script, consumed by the edge function, then deleted after processing
+- Audio files are uploaded by the edge function (from Cobalt), used for Whisper transcription, then deleted after processing
 
 ### Cancellation Flow
 
@@ -269,5 +271,7 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - **Project path**: `C:\Users\nlnic\Documents\Projects\podcast-app`
 - **Supabase project**: `podcast-brain` (id: vxxmlieonejwyojenrsh)
 - **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
+- **Railway project**: `stellar-love` — Cobalt + yt-session-generator for YouTube audio
+- **Cobalt URL**: `https://cobalt-production-8df9.up.railway.app`
 - **GitHub branch**: `claude/podcast-knowledge-base-JqEHZ`
 - **Budget**: Minimal API costs — OpenAI embeddings ~$0.02/1M tokens, Whisper and GPT-4o usage-based
