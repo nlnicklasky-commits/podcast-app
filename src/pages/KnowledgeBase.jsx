@@ -65,9 +65,7 @@ export default function KnowledgeBase() {
   }
 
   function handleSelectPodcast(podcast) {
-    if (podcast.status === 'ready') {
-      navigate(`/kb/${id}/podcast/${podcast.id}`)
-    }
+    navigate(`/kb/${id}/podcast/${podcast.id}`)
   }
 
   async function handleRename() {
