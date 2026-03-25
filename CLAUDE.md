@@ -1,5 +1,10 @@
 # CLAUDE.md — Podcast Knowledge Base
 
+## Agent Rules
+
+- **Always load skills**: At the start of every session, read the `clawdmd` and `hooksmith` skills. These inform how to maintain this file and how to use hooks for deterministic enforcement.
+- **Git workflow**: Claude commits changes but does NOT push. Nick pushes manually.
+
 ## Vision
 
 A personal "second brain" for podcast content. Create **knowledge bases** around topics, fill them with podcasts, and the system extracts insights, themes, and key points — then lets you ask questions across everything using an LLM with full source citations.
@@ -305,7 +310,4 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - **Supabase project**: `podcast-brain` (id: vxxmlieonejwyojenrsh)
 - **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
 - **Railway project**: `stellar-love` — Cobalt + yt-session-generator (YouTube fallback)
-- **Cobalt URL**: `https://cobalt-production-8df9.up.railway.app`
-- **Domain**: `podbrain.space` (Vercel, with ImprovMX email forwarding for nick@podbrain.space)
-- **GitHub branch**: `claude/podcast-knowledge-base-JqEHZ`
-- **Budget**: Minimal API costs — OpenAI embeddings ~$0.02/1M tokens, Whisper and GPT-4o usage-based
+- **Cobalt URL**:
