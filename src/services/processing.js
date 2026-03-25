@@ -2,13 +2,25 @@ import { supabase } from '../lib/supabase'
 
 /**
  * Trigger the full processing pipeline for a podcast.
- * In dev: calls local Vite API which runs yt-dlp + uploads to Storage + triggers edge function.
- * The local API spawns the process as a background task and returns immediately.
+ * Calls the Supabase Edge Function which:
+ *   1. Downloads audio via Cobalt (Railway)
+ *   2. Uploads to Supabase Storage
+ *   3. Transcribes with OpenAI Whisper
+ *   4. Chunks + generates embeddings
+ *   5. Generates insights with GPT-4o
  * Progress is tracked via polling the DB (status + progress columns).
  */
 export async function processPodcast(podcastId) {
-  const response = await fetch(`/api/process/${podcastId}`, {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({ podcast_id: podcastId }),
   })
 
   if (!response.ok) {
