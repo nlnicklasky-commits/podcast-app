@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
       .from("podcasts")
-      .select("id, url, title, youtube_video_id")
+      .select("id, url, title, youtube_video_id, enclosure_url, source")
       .eq("id", podcast_id)
       .limit(1);
 
@@ -87,51 +87,71 @@ Deno.serve(async (req: Request) => {
     //   Insights               = 90% – 100%
     // ============================================================
 
-    // 2. Download audio via Cobalt (Railway)
+    // 2. Download audio
     await setStatus("downloading");
     await setProgress(0);
-    await log("downloading", `Requesting audio from Cobalt for: ${pod.url}`);
 
-    const cobaltResponse = await fetch(COBALT_URL, {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url: pod.url,
-        downloadMode: "audio",
-        audioFormat: "mp3",
-      }),
-    });
+    let audioBlob: Blob;
 
-    if (!cobaltResponse.ok) {
-      const errText = await cobaltResponse.text();
-      throw new Error(`Cobalt API error: ${cobaltResponse.status} ${errText}`);
+    if (pod.enclosure_url) {
+      // PODCAST INDEX / RSS SOURCE — direct download from enclosure URL
+      await log("downloading", `Downloading audio directly from RSS feed: ${pod.enclosure_url.slice(0, 100)}...`);
+
+      const audioResponse = await fetch(pod.enclosure_url, {
+        headers: { "User-Agent": "PodcastBrain/1.0" },
+      });
+
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to download audio from RSS feed: ${audioResponse.status}`);
+      }
+
+      audioBlob = await audioResponse.blob();
+      await setProgress(5);
+      await log("downloading", `Downloaded ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB from RSS feed.`);
+    } else {
+      // YOUTUBE SOURCE — download via Cobalt (Railway)
+      await log("downloading", `Requesting audio from Cobalt for: ${pod.url}`);
+
+      const cobaltResponse = await fetch(COBALT_URL, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: pod.url,
+          downloadMode: "audio",
+          audioFormat: "mp3",
+        }),
+      });
+
+      if (!cobaltResponse.ok) {
+        const errText = await cobaltResponse.text();
+        throw new Error(`Cobalt API error: ${cobaltResponse.status} ${errText}`);
+      }
+
+      const cobaltResult = await cobaltResponse.json();
+
+      if (cobaltResult.status === "error") {
+        throw new Error(`Cobalt error: ${cobaltResult.error?.code || "unknown"}`);
+      }
+
+      const audioUrl = cobaltResult.url;
+      if (!audioUrl) {
+        throw new Error(`Cobalt did not return a download URL. Response: ${JSON.stringify(cobaltResult)}`);
+      }
+
+      await setProgress(5);
+      await log("downloading", "Got download URL from Cobalt. Downloading audio...");
+
+      const audioResponse = await fetch(audioUrl);
+      if (!audioResponse.ok) {
+        throw new Error(`Failed to download audio from Cobalt URL: ${audioResponse.status}`);
+      }
+
+      audioBlob = await audioResponse.blob();
     }
 
-    const cobaltResult = await cobaltResponse.json();
-
-    if (cobaltResult.status === "error") {
-      throw new Error(`Cobalt error: ${cobaltResult.error?.code || "unknown"}`);
-    }
-
-    // Cobalt returns either a redirect URL or a tunnel URL
-    const audioUrl = cobaltResult.url;
-    if (!audioUrl) {
-      throw new Error(`Cobalt did not return a download URL. Response: ${JSON.stringify(cobaltResult)}`);
-    }
-
-    await setProgress(5);
-    await log("downloading", "Got download URL from Cobalt. Downloading audio...");
-
-    // Download the actual audio file
-    const audioResponse = await fetch(audioUrl);
-    if (!audioResponse.ok) {
-      throw new Error(`Failed to download audio from Cobalt URL: ${audioResponse.status}`);
-    }
-
-    const audioBlob = await audioResponse.blob();
     const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(1);
     await setProgress(15);
     await log("downloading", `Downloaded ${sizeMB}MB audio file.`);
