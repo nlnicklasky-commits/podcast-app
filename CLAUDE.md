@@ -7,7 +7,7 @@ A personal "second brain" for podcast content. Create **knowledge bases** around
 ### Core Concept
 
 - A **knowledge base** is a collection of podcasts grouped by topic (e.g., "AI Startups", "Health & Longevity", "Marketing Tactics")
-- Add YouTube podcast URLs to a knowledge base
+- Search for podcasts via Podcast Index, or paste a YouTube URL as a fallback
 - System automatically: downloads audio → transcribes → chunks → embeds → extracts insights
 - Each knowledge base has its own chat interface where you can ask questions and get LLM-powered answers grounded in the actual podcast content
 - Cross-podcast synthesis: compare viewpoints, find agreements/disagreements, surface patterns
@@ -20,7 +20,8 @@ Built for Nick (personal use first), with potential to productize later. Archite
 
 - **Frontend**: React 19 + Vite 8 + Tailwind CSS 4 + React Router 7
 - **Backend/Database**: Supabase (Postgres, Auth, Edge Functions, Storage)
-- **AI/ML**: OpenAI only — Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights/chat)
+- **AI/ML**: OpenAI — Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights), GPT-4o-mini (chat)
+- **Podcast Discovery**: Podcast Index API (free, open podcast directory with RSS feeds)
 - **Deployment**: Vercel (frontend, auto-deploy on push to GitHub)
 
 ### Why This Stack
@@ -28,9 +29,9 @@ Built for Nick (personal use first), with potential to productize later. Archite
 - No Python, no virtual environments — entire stack is JavaScript
 - Supabase handles DB, auth, storage, and vector search (pgvector) in one place
 - Nick already uses Supabase for happened-live, so familiar territory
-- OpenAI handles everything: Whisper for transcription, embeddings, GPT-4o for insights and chat
-- Edge Functions handle API calls to OpenAI server-side (keeps keys safe)
-- Single API key (OPENAI_API_KEY) simplifies configuration
+- OpenAI handles everything: Whisper for transcription, embeddings, GPT-4o/mini for insights and chat
+- Edge Functions handle API calls to OpenAI + Podcast Index server-side (keeps keys safe)
+- Podcast Index provides legally clean RSS feed audio URLs — no scraping or YouTube TOS issues
 
 ## Project Structure
 
@@ -45,11 +46,9 @@ podcast-app/
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
-├── scripts/
-│   └── download-audio.js  # Local yt-dlp download + Supabase Storage upload
 ├── supabase/
 │   ├── migrations/        # SQL migrations
-│   └── functions/         # Edge Functions (process-podcast, chat)
+│   └── functions/         # Edge Functions (process-podcast, chat, podcast-search, podcast-episodes)
 ├── public/
 ├── CLAUDE.md
 ├── package.json
@@ -69,12 +68,17 @@ podcast-app/
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
 
-**podcasts** (KB-independent — one row per unique YouTube video)
+**podcasts** (KB-independent — one row per unique episode)
 - `id` (uuid, PK)
-- `youtube_video_id` (text, unique) — extracted from URL, used for deduplication
-- `url` (text) — YouTube URL
+- `youtube_video_id` (text, unique, nullable) — for YouTube sources, used for deduplication
+- `podcast_index_id` (bigint, nullable) — Podcast Index feed ID
+- `episode_index_id` (bigint, nullable) — Podcast Index episode ID, used for deduplication
+- `feed_url` (text, nullable) — RSS feed URL
+- `enclosure_url` (text, nullable) — direct audio file URL from RSS feed
+- `source` (text, nullable) — 'podcast_index' or null (YouTube)
+- `url` (text) — original URL (YouTube URL or episode link)
 - `title` (text, nullable)
-- `channel` (text, nullable)
+- `channel` (text, nullable) — show name
 - `duration_seconds` (int, nullable)
 - `thumbnail_url` (text, nullable)
 - `status` (text) — pending | downloading | transcribing | processing | ready | error | cancelled
@@ -150,7 +154,7 @@ podcast-app/
 - [x] Podcast deduplication via `youtube_video_id` + junction table
 
 ### Phase 2 — Processing Pipeline ✅
-- [x] Audio download via Cobalt (Railway) — no local tools needed
+- [x] Audio download (RSS direct or Cobalt for YouTube fallback) — no local tools needed
 - [x] Supabase Edge Function: download → transcription → chunking → embeddings → insights
 - [x] OpenAI Whisper transcription
 - [x] Chunking logic (time-based with sentence boundary respect)
@@ -159,6 +163,15 @@ podcast-app/
 - [x] Processing status UI (step tracker, progress bar, persistent elapsed timer from DB logs)
 - [x] Processing logs (terminal-style, polls every 3s)
 - [x] Cancel processing (sets DB status to 'cancelled', edge function polls and aborts)
+
+### Phase 2.5 — Podcast Index Integration ✅
+- [x] Podcast Index API credentials (key + secret via Supabase secrets)
+- [x] Edge Function: podcast-search (search shows by term)
+- [x] Edge Function: podcast-episodes (list episodes by feed ID)
+- [x] AddPodcastModal: search shows → browse episodes → add episode
+- [x] Direct RSS audio download (enclosure_url) — no Cobalt/YouTube needed
+- [x] Episode deduplication via `episode_index_id`
+- [x] YouTube URL paste retained as fallback
 
 ### Phase 3 — Embeddings & Search ✅ (embeddings) / 🔲 (search UI)
 - [x] Generate embeddings via OpenAI text-embedding-3-small
@@ -172,11 +185,11 @@ podcast-app/
 - [x] Insights panel in UI
 - [ ] Knowledge base-level synthesis (themes across all podcasts)
 
-### Phase 5 — Chat (RAG)
-- [ ] RAG pipeline: query → vector search → context assembly → GPT-4o response
-- [ ] Source citations with timestamps
-- [ ] Conversation history per knowledge base
-- [ ] Chat UI component
+### Phase 5 — Chat (RAG) ✅
+- [x] RAG pipeline: query → vector search → context assembly → GPT-4o-mini response
+- [x] Source citations with timestamps
+- [x] Conversation history per knowledge base
+- [x] Chat UI component
 
 ### Phase 6 — Polish & Productize (Later)
 - [ ] Supabase Auth integration + RLS policies
@@ -194,6 +207,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 # API Keys (server-side only — set as Supabase secrets, NOT in frontend)
 OPENAI_API_KEY=your-openai-key
+PODCAST_INDEX_KEY=your-podcast-index-key
+PODCAST_INDEX_SECRET=your-podcast-index-secret
 ```
 
 ## Quick Commands
@@ -208,15 +223,16 @@ npm run dev
 # Build for production
 npm run build
 
-# Process a podcast (click "Process" in the UI, or trigger via edge function)
-# Audio is downloaded automatically via Cobalt (Railway) — no local tools needed
+# Process a podcast — click "Process" in the UI. Everything runs server-side.
 ```
 
 ## Key Decisions
 
 - **No Python in the stack** — entire stack is JavaScript
-- **Cobalt on Railway for YouTube audio** — Cobalt (open-source) handles YouTube audio extraction server-side, eliminating the need for yt-dlp or any local tools
-- **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), and insights/chat (GPT-4o). Simpler than juggling Deepgram + Anthropic
+- **Podcast Index as primary source** — free, open API with direct RSS audio URLs. Legally clean (RSS feeds are public), no scraping, no YouTube TOS issues. Perfect for productizing later.
+- **YouTube as fallback only** — users can still paste YouTube URLs, which use Cobalt (Railway) for audio extraction. But Podcast Index search is the recommended path.
+- **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), insights (GPT-4o), and chat (GPT-4o-mini). Simpler than juggling multiple providers.
+- **GPT-4o-mini for chat** — ~10x cheaper than GPT-4o, good enough for RAG queries. GPT-4o still used for insights (one-time per podcast).
 - **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
 - **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
 - **Standalone Podcasts section** — podcasts exist independently and can be added to multiple KBs via junction table
@@ -227,11 +243,11 @@ npm run build
 
 Everything runs in the cloud — no local tools needed. Click "Process" in the UI and it just works.
 
-### Edge Function (`process-podcast` v11)
+### Edge Function (`process-podcast` v14)
 
 The entire pipeline runs in a single Supabase Edge Function:
 
-1. **Download via Cobalt** — Calls Cobalt API (Railway) to get YouTube audio download URL, downloads the audio (0-15%)
+1. **Download audio** — For Podcast Index episodes: downloads directly from RSS `enclosure_url`. For YouTube: calls Cobalt API (Railway) to get audio. (0-15%)
 2. **Upload to Storage** — Uploads audio to Supabase Storage `podcast-audio` bucket as backup (15-30%)
 3. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments (30-55%)
 4. **Chunk** — Splits transcript into chunks (~500 tokens, sentence boundary respect) (55-60%)
@@ -243,20 +259,37 @@ Progress is written as actual 0-100% to `podcasts.progress` at each step. The fr
 
 Each step writes to the `processing_logs` table for real-time visibility. The function checks for `cancelled` status before each major step and aborts + cleans up partial data if cancelled.
 
-### Cobalt (Railway)
+### Edge Functions
 
-- **Service**: Cobalt v11 (`ghcr.io/imputnet/cobalt:11`) — open-source YouTube audio downloader
-- **Companion**: yt-session-generator (`ghcr.io/imputnet/yt-session-generator:webserver`) — generates YouTube auth tokens
+| Function | Version | Purpose |
+|----------|---------|---------|
+| `process-podcast` | v14 | Full processing pipeline (download → transcribe → embed → insights) |
+| `chat` | v5 | RAG chat — vector search + GPT-4o-mini response with citations |
+| `podcast-search` | v2 | Search Podcast Index API for shows by term |
+| `podcast-episodes` | v2 | Get episodes for a Podcast Index feed by feed ID |
+| `youtube-search` | v4 | YouTube search via InnerTube API (kept as fallback, not used in primary UI) |
+
+### Podcast Index API
+
+- **API**: `https://api.podcastindex.org/api/1.0/`
+- **Auth**: SHA-1 hash of (apiKey + apiSecret + unixTimestamp) sent as `Authorization` header
+- **Endpoints used**: `/search/byterm` (show search), `/episodes/byfeedid` (episode listing)
+- **Why**: Free, open podcast directory. RSS `enclosureUrl` fields provide direct public MP3 URLs — legally clean, no scraping.
+
+### Cobalt (Railway) — YouTube Fallback Only
+
+- **Service**: Cobalt v11 (`ghcr.io/imputnet/cobalt:11`)
+- **Companion**: yt-session-generator (`ghcr.io/imputnet/yt-session-generator:webserver`)
 - **Railway project**: `stellar-love` (id: 62063223-f85f-44ab-9ff6-f4bbc5402337)
 - **Public URL**: `https://cobalt-production-8df9.up.railway.app`
 - **API**: `POST /` with `{"url": "...", "downloadMode": "audio", "audioFormat": "mp3"}`
-- **Why**: YouTube's innertube API is broken (Proof of Origin token requirement). Cobalt handles this server-side with yt-session-generator for authentication.
+- **Note**: Only used when processing YouTube URLs (no `enclosure_url` on podcast record). Podcast Index episodes bypass Cobalt entirely.
 
 ### Supabase Storage
 
 - **Bucket**: `podcast-audio` (private)
 - **RLS**: anon can INSERT, SELECT, UPDATE, DELETE; service_role has full access
-- Audio files are uploaded by the edge function (from Cobalt), used for Whisper transcription, then deleted after processing
+- Audio files are uploaded by the edge function, used for Whisper transcription, then deleted after processing
 
 ### Cancellation Flow
 
@@ -271,7 +304,8 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - **Project path**: `C:\Users\nlnic\Documents\Projects\podcast-app`
 - **Supabase project**: `podcast-brain` (id: vxxmlieonejwyojenrsh)
 - **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
-- **Railway project**: `stellar-love` — Cobalt + yt-session-generator for YouTube audio
+- **Railway project**: `stellar-love` — Cobalt + yt-session-generator (YouTube fallback)
 - **Cobalt URL**: `https://cobalt-production-8df9.up.railway.app`
+- **Domain**: `podbrain.space` (Vercel, with ImprovMX email forwarding for nick@podbrain.space)
 - **GitHub branch**: `claude/podcast-knowledge-base-JqEHZ`
 - **Budget**: Minimal API costs — OpenAI embeddings ~$0.02/1M tokens, Whisper and GPT-4o usage-based

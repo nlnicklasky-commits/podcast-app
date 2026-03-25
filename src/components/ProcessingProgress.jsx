@@ -18,7 +18,7 @@ const STATUS_INDEX = {
 
 const STATUS_MESSAGES = {
   pending: 'Waiting to start...',
-  downloading: 'Downloading audio from YouTube...',
+  downloading: 'Downloading audio...',
   transcribing: 'Transcribing with OpenAI Whisper...',
   processing: 'Generating embeddings & insights...',
   ready: 'All done!',

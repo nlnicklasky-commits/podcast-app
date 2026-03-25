@@ -202,14 +202,16 @@ export default function PodcastDetail() {
                 Cancel
               </button>
             )}
-            <a
-              href={podcast.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-purple-400 hover:text-purple-300"
-            >
-              Open on YouTube →
-            </a>
+            {podcast.url && (
+              <a
+                href={podcast.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-purple-400 hover:text-purple-300"
+              >
+                {podcast.source === 'podcast_index' ? 'Open Episode →' : 'Open on YouTube →'}
+              </a>
+            )}
             <button
               onClick={() => setShowAddToKB(true)}
               className="text-sm px-3 py-1 bg-white/5 border border-white/10 hover:border-purple-500/50 text-gray-300 hover:text-white rounded-lg transition-colors"

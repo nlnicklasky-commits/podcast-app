@@ -182,7 +182,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
               onClick={() => { setMode('url'); setError('') }}
               className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${mode === 'url' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
             >
-              YouTube URL
+              Paste URL
             </button>
           </div>
         )}
@@ -325,7 +325,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
           /* ========== URL MODE ========== */
           <form onSubmit={handleUrlSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">YouTube URL</label>
+              <label className="block text-sm text-gray-400 mb-1">Podcast URL</label>
               <input
                 type="url"
                 value={url}
@@ -335,7 +335,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                 autoFocus
               />
               <p className="text-xs text-gray-500 mt-1">
-                Fallback for YouTube-only content. Podcast search is recommended.
+                Paste a YouTube URL directly. Podcast search above is recommended.
               </p>
               {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
             </div>
