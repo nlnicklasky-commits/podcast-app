@@ -45,6 +45,8 @@ podcast-app/
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
+├── scripts/
+│   └── download-audio.js  # Local yt-dlp download + Supabase Storage upload
 ├── supabase/
 │   ├── migrations/        # SQL migrations
 │   └── functions/         # Edge Functions (process-podcast, chat)
@@ -76,6 +78,7 @@ podcast-app/
 - `duration_seconds` (int, nullable)
 - `thumbnail_url` (text, nullable)
 - `status` (text) — pending | downloading | transcribing | processing | ready | error | cancelled
+- `progress` (real, default 0) — 0-100 overall processing progress, written by edge function
 - `error_message` (text, nullable)
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
@@ -147,11 +150,13 @@ podcast-app/
 - [x] Podcast deduplication via `youtube_video_id` + junction table
 
 ### Phase 2 — Processing Pipeline ✅
-- [x] Supabase Edge Function: download audio from YouTube (innertube ANDROID client)
+- [x] Local yt-dlp audio download + Supabase Storage upload (`scripts/download-audio.js`)
+- [x] Supabase Edge Function: transcription → chunking → embeddings → insights
 - [x] OpenAI Whisper transcription
 - [x] Chunking logic (time-based with sentence boundary respect)
 - [x] Store chunks with timestamps in Supabase
-- [x] Processing status UI (step tracker, progress bar, elapsed timer)
+- [x] Real-time progress tracking (0-100% written by edge function, polled every 2s)
+- [x] Processing status UI (step tracker, progress bar, persistent elapsed timer from DB logs)
 - [x] Processing logs (terminal-style, polls every 3s)
 - [x] Cancel processing (sets DB status to 'cancelled', edge function polls and aborts)
 
@@ -202,11 +207,14 @@ npm run dev
 
 # Build for production
 npm run build
+
+# Process a podcast (download audio locally via yt-dlp, upload to Supabase Storage, trigger pipeline)
+npm run process -- <podcast_id>
 ```
 
 ## Key Decisions
 
-- **No Python** — entire stack is JavaScript to avoid venv/pip issues on Windows
+- **No Python in the stack** — entire stack is JavaScript (yt-dlp is the one exception, used only as a CLI tool for YouTube audio extraction)
 - **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), and insights/chat (GPT-4o). Simpler than juggling Deepgram + Anthropic
 - **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
 - **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
@@ -214,18 +222,39 @@ npm run build
 - **Edge Functions for API calls** — keeps API keys server-side, handles heavy processing off the client
 - **Supabase over custom backend** — no Express/FastAPI server to maintain, everything lives in Supabase
 
-## Processing Pipeline (Edge Function: `process-podcast`)
+## Processing Pipeline
 
-The full pipeline runs server-side in a single Supabase Edge Function:
+The pipeline is split between local execution and a Supabase Edge Function:
 
-1. **Download** — Extracts audio URL from YouTube via innertube API (ANDROID client), downloads audio
-2. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments
-3. **Chunk** — Splits transcript into overlapping chunks (~500 tokens, sentence boundary respect)
-4. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20)
-5. **Insights** — GPT-4o generates summary, topics, key points, and entities
-6. **Done** — Status set to `ready`
+### Local Download (`scripts/download-audio.js`)
+
+1. **Fetch** — Gets podcast record from Supabase (YouTube URL, video ID)
+2. **Download** — Uses yt-dlp to download smallest audio format (<25MB for Whisper limit)
+3. **Upload** — Uploads audio file to Supabase Storage (`podcast-audio` bucket)
+4. **Trigger** — Calls the `process-podcast` Edge Function with `audio_storage_path`
+
+YouTube's innertube API is completely broken (Proof of Origin token requirement blocks all client variants). yt-dlp handles this locally and the audio is transferred via Supabase Storage.
+
+### Edge Function (`process-podcast`)
+
+Picks up after audio is in Storage:
+
+1. **Download from Storage** — Fetches audio from `podcast-audio` bucket (0-30%)
+2. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments (30-55%)
+3. **Chunk** — Splits transcript into overlapping chunks (~500 tokens, sentence boundary respect) (55-60%)
+4. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20) (60-90%)
+5. **Insights** — GPT-4o generates summary, topics, key points, and entities (90-99%)
+6. **Done** — Status set to `ready`, progress = 100%, Storage audio file cleaned up
+
+Progress is written as actual 0-100% to `podcasts.progress` at each step. The frontend polls every 2 seconds and displays the real value.
 
 Each step writes to the `processing_logs` table for real-time visibility. The function checks for `cancelled` status before each major step and aborts + cleans up partial data if cancelled.
+
+### Supabase Storage
+
+- **Bucket**: `podcast-audio` (private)
+- **RLS**: anon can INSERT, SELECT, UPDATE, DELETE; service_role has full access
+- Audio files are uploaded by the local script, consumed by the edge function, then deleted after processing
 
 ### Cancellation Flow
 

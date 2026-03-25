@@ -180,7 +180,6 @@ export default function KnowledgeBase() {
                   key={podcast.id}
                   podcast={podcast}
                   onDelete={handleDeletePodcast}
-                  onStatusChange={handleStatusChange}
                   onSelect={handleSelectPodcast}
                 />
               ))}

@@ -1,43 +1,14 @@
-import { useState } from 'react'
 import { statusColors, formatDuration, formatDate } from '../lib/utils'
-import { processPodcast, getPodcastStatus } from '../services/processing'
 import ProcessingProgress from './ProcessingProgress'
 
-export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelect }) {
-  const [processing, setProcessing] = useState(false)
+export default function PodcastCard({ podcast, onDelete, onSelect }) {
   const statusClass = statusColors[podcast.status] || statusColors.pending
   const isProcessing = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
 
-  async function handleProcess(e) {
+  function handleProcess(e) {
     e.stopPropagation()
-    if (processing || podcast.status === 'ready') return
-    setProcessing(true)
-
-    try {
-      // Fire and forget — the Edge Function updates status as it goes
-      processPodcast(podcast.id).catch(console.error)
-      // Start polling for status updates
-      if (onStatusChange) {
-        const poll = setInterval(async () => {
-          try {
-            const status = await getPodcastStatus(podcast.id)
-            if (status) {
-              onStatusChange(podcast.id, status.status, status.error_message, status.progress)
-              if (status.status === 'ready' || status.status === 'error') {
-                clearInterval(poll)
-                setProcessing(false)
-              }
-            }
-          } catch {
-            clearInterval(poll)
-            setProcessing(false)
-          }
-        }, 3000)
-      }
-    } catch (err) {
-      console.error(err)
-      setProcessing(false)
-    }
+    // Navigate to podcast detail where user can see the CLI command
+    onSelect?.(podcast)
   }
 
   return (
@@ -91,17 +62,15 @@ export default function PodcastCard({ podcast, onDelete, onStatusChange, onSelec
           {podcast.status === 'pending' && (
             <button
               onClick={handleProcess}
-              disabled={processing}
-              className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+              className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
             >
-              {processing ? 'Starting...' : 'Process'}
+              Process
             </button>
           )}
           {podcast.status === 'error' && (
             <button
               onClick={handleProcess}
-              disabled={processing}
-              className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+              className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors"
               title={podcast.error_message}
             >
               Retry
