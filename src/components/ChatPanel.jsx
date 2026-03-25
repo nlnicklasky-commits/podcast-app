@@ -9,6 +9,7 @@ export default function ChatPanel({ knowledgeBaseId }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [showSidebar, setShowSidebar] = useState(false)
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
@@ -66,6 +67,12 @@ export default function ChatPanel({ knowledgeBaseId }) {
   function startNewConversation() {
     setActiveConvId(null)
     setMessages([])
+    setShowSidebar(false)
+  }
+
+  function selectConversation(id) {
+    setActiveConvId(id)
+    setShowSidebar(false)
   }
 
   function formatTimestamp(seconds) {
@@ -78,44 +85,81 @@ export default function ChatPanel({ knowledgeBaseId }) {
   }
 
   return (
-    <div className="flex gap-4 h-[600px]">
-      {/* Conversation sidebar */}
-      <div className="w-56 flex-shrink-0 border border-white/10 rounded-xl overflow-hidden flex flex-col">
-        <div className="p-3 border-b border-white/10">
-          <button
-            onClick={startNewConversation}
-            className="w-full px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-          >
-            + New Chat
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {conversations.map((conv) => (
+    <div className="flex gap-4 h-[calc(100vh-16rem)] sm:h-[600px]">
+      {/* Conversation sidebar — hidden on mobile, toggled via button */}
+      <div className={`${showSidebar ? 'fixed inset-0 z-40 flex' : 'hidden'} sm:relative sm:flex sm:z-auto`}>
+        {/* Backdrop on mobile */}
+        {showSidebar && (
+          <div
+            className="fixed inset-0 bg-black/50 sm:hidden"
+            onClick={() => setShowSidebar(false)}
+          />
+        )}
+        <div className="relative z-10 w-64 sm:w-56 flex-shrink-0 border border-white/10 rounded-xl overflow-hidden flex flex-col bg-[#1a1a24] sm:bg-transparent">
+          <div className="p-3 border-b border-white/10 flex items-center gap-2">
             <button
-              key={conv.id}
-              onClick={() => setActiveConvId(conv.id)}
-              className={`w-full text-left px-3 py-2 text-sm border-b border-white/5 transition-colors ${
-                activeConvId === conv.id
-                  ? 'bg-purple-600/20 text-purple-300'
-                  : 'text-gray-400 hover:bg-white/5'
-              }`}
+              onClick={startNewConversation}
+              className="flex-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
             >
-              <p className="truncate">{conv.title || 'Untitled'}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{formatDate(conv.created_at)}</p>
+              + New Chat
             </button>
-          ))}
-          {conversations.length === 0 && (
-            <p className="text-xs text-gray-500 p-3">No conversations yet</p>
-          )}
+            <button
+              onClick={() => setShowSidebar(false)}
+              className="sm:hidden p-1.5 text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {conversations.map((conv) => (
+              <button
+                key={conv.id}
+                onClick={() => selectConversation(conv.id)}
+                className={`w-full text-left px-3 py-2 text-sm border-b border-white/5 transition-colors ${
+                  activeConvId === conv.id
+                    ? 'bg-purple-600/20 text-purple-300'
+                    : 'text-gray-400 hover:bg-white/5'
+                }`}
+              >
+                <p className="truncate">{conv.title || 'Untitled'}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{formatDate(conv.created_at)}</p>
+              </button>
+            ))}
+            {conversations.length === 0 && (
+              <p className="text-xs text-gray-500 p-3">No conversations yet</p>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 border border-white/10 rounded-xl overflow-hidden flex flex-col">
+      <div className="flex-1 border border-white/10 rounded-xl overflow-hidden flex flex-col min-w-0">
+        {/* Mobile header with sidebar toggle */}
+        <div className="flex items-center gap-2 p-2 border-b border-white/10 sm:hidden">
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+            title="Conversations"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="text-sm text-gray-400 flex-1 truncate">
+            {activeConvId ? (conversations.find(c => c.id === activeConvId)?.title || 'Chat') : 'New Chat'}
+          </span>
+          <button
+            onClick={startNewConversation}
+            className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
+          >
+            + New
+          </button>
+        </div>
+
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center py-12">
+            <div className="text-center py-8 sm:py-12">
               <p className="text-3xl mb-2">💬</p>
               <p className="text-gray-400">Ask a question about your podcasts</p>
               <p className="text-sm text-gray-500 mt-1">
@@ -129,7 +173,7 @@ export default function ChatPanel({ knowledgeBaseId }) {
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-xl px-4 py-3 ${
+                className={`max-w-[90%] sm:max-w-[80%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 ${
                   msg.role === 'user'
                     ? 'bg-purple-600 text-white'
                     : 'bg-white/5 border border-white/10 text-gray-200'
@@ -177,7 +221,7 @@ export default function ChatPanel({ knowledgeBaseId }) {
         )}
 
         {/* Input */}
-        <form onSubmit={handleSend} className="p-3 border-t border-white/10">
+        <form onSubmit={handleSend} className="p-2 sm:p-3 border-t border-white/10">
           <div className="flex gap-2">
             <input
               type="text"
@@ -190,7 +234,7 @@ export default function ChatPanel({ knowledgeBaseId }) {
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm"
+              className="px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm flex-shrink-0"
             >
               Send
             </button>

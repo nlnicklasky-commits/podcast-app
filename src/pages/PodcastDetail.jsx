@@ -155,24 +155,24 @@ export default function PodcastDetail() {
       </Link>
 
       {/* Header */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
         {podcast.thumbnail_url ? (
           <img
             src={podcast.thumbnail_url}
             alt=""
-            className="w-48 h-28 object-cover rounded-xl flex-shrink-0"
+            className="w-full sm:w-48 h-40 sm:h-28 object-cover rounded-xl flex-shrink-0"
           />
         ) : (
-          <div className="w-48 h-28 bg-white/5 rounded-xl flex-shrink-0 flex items-center justify-center text-4xl">
+          <div className="w-full sm:w-48 h-40 sm:h-28 bg-white/5 rounded-xl flex-shrink-0 flex items-center justify-center text-4xl">
             🎙️
           </div>
         )}
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">
             {podcast.title || 'Untitled Podcast'}
           </h1>
           {podcast.channel && (
-            <p className="text-gray-400 mt-1">{podcast.channel}</p>
+            <p className="text-gray-400 mt-1 text-sm sm:text-base">{podcast.channel}</p>
           )}
           <div className="flex items-center gap-3 mt-2">
             <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>
@@ -180,7 +180,7 @@ export default function PodcastDetail() {
             </span>
             <span className="text-xs text-gray-500">{formatDate(podcast.created_at)}</span>
           </div>
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-2 sm:gap-3 mt-3 flex-wrap">
             {canProcess && (
               <button
                 onClick={handleProcess}
@@ -214,9 +214,9 @@ export default function PodcastDetail() {
             )}
             <button
               onClick={() => setShowAddToKB(true)}
-              className="text-sm px-3 py-1 bg-white/5 border border-white/10 hover:border-purple-500/50 text-gray-300 hover:text-white rounded-lg transition-colors"
+              className="text-sm px-3 py-1.5 bg-white/5 border border-white/10 hover:border-purple-500/50 text-gray-300 hover:text-white rounded-lg transition-colors"
             >
-              + Add to Knowledge Base
+              + Add to KB
             </button>
           </div>
           {/* Show linked KBs */}
@@ -241,7 +241,7 @@ export default function PodcastDetail() {
       </div>
 
       {/* Processing progress */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
         <ProcessingProgress status={podcast.status} startedAt={processingStartedAt} finishedAt={processingFinishedAt} progress={podcast.progress} />
       </div>
 
@@ -271,7 +271,7 @@ export default function PodcastDetail() {
       )}
 
       {activeTab === 'transcript' && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
           {transcript ? (
             <div>
               <div className="flex items-center justify-between mb-4">

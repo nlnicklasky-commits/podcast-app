@@ -16,16 +16,16 @@ export default function PodcastCard({ podcast, onDelete, onSelect }) {
       className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors group cursor-pointer"
       onClick={() => onSelect?.(podcast)}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-3 sm:gap-4">
         {/* Thumbnail */}
         {podcast.thumbnail_url ? (
           <img
             src={podcast.thumbnail_url}
             alt=""
-            className="w-32 h-20 object-cover rounded-lg flex-shrink-0"
+            className="w-20 h-14 sm:w-32 sm:h-20 object-cover rounded-lg flex-shrink-0"
           />
         ) : (
-          <div className="w-32 h-20 bg-white/5 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">
+          <div className="w-20 h-14 sm:w-32 sm:h-20 bg-white/5 rounded-lg flex-shrink-0 flex items-center justify-center text-xl sm:text-2xl">
             🎙️
           </div>
         )}
@@ -81,7 +81,7 @@ export default function PodcastCard({ podcast, onDelete, onSelect }) {
               e.stopPropagation()
               onDelete(podcast.id)
             }}
-            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1 text-xs"
+            className="sm:opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1 text-xs"
             title="Remove podcast"
           >
             ✕

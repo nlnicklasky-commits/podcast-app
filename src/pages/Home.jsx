@@ -86,13 +86,13 @@ export default function Home() {
   return (
     <div>
       {/* Tabs */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div className="flex gap-1 border-b border-white/10">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              className={`px-3 sm:px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? 'text-purple-400 border-purple-400'
                   : 'text-gray-400 border-transparent hover:text-white'
@@ -105,7 +105,7 @@ export default function Home() {
         {activeTab === 'knowledgeBases' && (
           <button
             onClick={() => setShowCreate(true)}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors self-start sm:self-auto"
           >
             + New KB
           </button>
@@ -113,7 +113,7 @@ export default function Home() {
         {activeTab === 'podcasts' && (
           <button
             onClick={() => setShowAddPodcast(true)}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors self-start sm:self-auto"
           >
             + Add Podcast
           </button>
@@ -157,7 +157,7 @@ export default function Home() {
                           e.stopPropagation()
                           handleDelete(kb.id)
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
+                        className="sm:opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1"
                         title="Delete"
                       >
                         ✕
@@ -208,15 +208,15 @@ export default function Home() {
                     to={`/podcast/${podcast.id}`}
                     className="block bg-white/5 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-colors no-underline"
                   >
-                    <div className="flex gap-4">
+                    <div className="flex gap-3 sm:gap-4">
                       {podcast.thumbnail_url ? (
                         <img
                           src={podcast.thumbnail_url}
                           alt=""
-                          className="w-32 h-20 object-cover rounded-lg flex-shrink-0"
+                          className="w-20 h-14 sm:w-32 sm:h-20 object-cover rounded-lg flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-32 h-20 bg-white/5 rounded-lg flex-shrink-0 flex items-center justify-center text-2xl">
+                        <div className="w-20 h-14 sm:w-32 sm:h-20 bg-white/5 rounded-lg flex-shrink-0 flex items-center justify-center text-xl sm:text-2xl">
                           🎙️
                         </div>
                       )}

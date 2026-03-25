@@ -8,7 +8,7 @@ export default function Layout({ children }) {
     <div className="min-h-screen bg-[#0f0f13] text-gray-200">
       {/* Header */}
       <header className="border-b border-white/10 bg-[#0f0f13]/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 no-underline">
             <span className="text-xl">🎙️</span>
             <span className="font-semibold text-white text-lg tracking-tight">
@@ -27,7 +27,7 @@ export default function Layout({ children }) {
       </header>
 
       {/* Main content */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {children}
       </main>
     </div>

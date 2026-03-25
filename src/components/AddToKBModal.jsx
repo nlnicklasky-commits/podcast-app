@@ -40,8 +40,8 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
   )
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a24] border border-white/10 rounded-xl w-full max-w-md p-6">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-[#1a1a24] border border-white/10 rounded-t-xl sm:rounded-xl w-full max-w-md p-4 sm:p-6">
         <h2 className="text-xl font-semibold text-white mb-4">
           Add to Knowledge Base
         </h2>

@@ -28,7 +28,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
     <div className="space-y-6">
       {/* Summary */}
       {insights.summary && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-2">
             Summary
           </h3>
@@ -40,7 +40,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
 
       {/* Topics */}
       {insights.topics?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
             Topics
           </h3>
@@ -59,7 +59,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
 
       {/* Key Points */}
       {insights.key_points?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
             Key Points
           </h3>
@@ -76,7 +76,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
 
       {/* Entities */}
       {insights.entities?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
             People, Companies & Concepts
           </h3>

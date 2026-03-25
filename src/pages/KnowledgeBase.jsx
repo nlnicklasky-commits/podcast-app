@@ -97,8 +97,8 @@ export default function KnowledgeBase() {
   return (
     <div>
       {/* KB Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
+        <div className="flex-1 min-w-0">
           {editing ? (
             <form
               onSubmit={(e) => {
@@ -111,14 +111,14 @@ export default function KnowledgeBase() {
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="text-2xl font-bold bg-white/5 border border-white/20 rounded-lg px-3 py-1 text-white focus:outline-none focus:border-purple-500"
+                className="text-xl sm:text-2xl font-bold bg-white/5 border border-white/20 rounded-lg px-3 py-1 text-white focus:outline-none focus:border-purple-500 w-full"
                 autoFocus
                 onBlur={handleRename}
               />
             </form>
           ) : (
             <h1
-              className="text-3xl font-bold text-white cursor-pointer hover:text-purple-300 transition-colors"
+              className="text-2xl sm:text-3xl font-bold text-white cursor-pointer hover:text-purple-300 transition-colors truncate"
               onClick={() => setEditing(true)}
               title="Click to rename"
             >
@@ -126,13 +126,13 @@ export default function KnowledgeBase() {
             </h1>
           )}
           {kb.description && (
-            <p className="text-gray-400 mt-1">{kb.description}</p>
+            <p className="text-gray-400 mt-1 text-sm sm:text-base">{kb.description}</p>
           )}
         </div>
         {activeTab === 'podcasts' && (
           <button
             onClick={() => setShowAdd(true)}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0"
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0 self-start"
           >
             + Add Podcast
           </button>

@@ -146,8 +146,8 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a24] border border-white/10 rounded-xl w-full max-w-xl p-6 max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
+      <div className="bg-[#1a1a24] border border-white/10 rounded-t-xl sm:rounded-xl w-full max-w-xl p-4 sm:p-6 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

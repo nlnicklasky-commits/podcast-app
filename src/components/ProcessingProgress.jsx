@@ -134,7 +134,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             <div key={step.id} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-500 ${
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium transition-all duration-500 ${
                     isCompleted
                       ? 'bg-green-500 text-white'
                       : isCurrent
@@ -145,7 +145,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                   }`}
                 >
                   {isCompleted ? (
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : (
@@ -153,7 +153,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                   )}
                 </div>
                 <span
-                  className={`text-xs mt-1 whitespace-nowrap ${
+                  className={`text-[10px] sm:text-xs mt-1 whitespace-nowrap ${
                     isCompleted
                       ? 'text-green-400'
                       : isCurrent
@@ -167,7 +167,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
               {/* Connector line */}
               {i < STEPS.length - 1 && (
-                <div className="flex-1 h-0.5 mx-2 mt-[-1rem] bg-white/5 rounded-full overflow-hidden">
+                <div className="flex-1 h-0.5 mx-1 sm:mx-2 mt-[-1rem] bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ease-out ${
                       isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500 animate-pulse' : ''
@@ -184,7 +184,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
       </div>
 
       {/* Full-width progress bar */}
-      <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-1.5 sm:h-2 bg-white/5 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${
             isError
