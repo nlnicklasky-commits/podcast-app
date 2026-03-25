@@ -21,8 +21,6 @@ export default function PodcastDetail() {
   const [processing, setProcessing] = useState(false)
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
-  const [showProcessCmd, setShowProcessCmd] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const isStandalone = !kbId
 
@@ -94,33 +92,19 @@ export default function PodcastDetail() {
     return () => clearInterval(poll)
   }, [podcast?.status, processing, podcastId])
 
-  function handleProcess() {
-    setShowProcessCmd(true)
-    setCopied(false)
-  }
-
-  async function handleProcessConfirm() {
+  async function handleProcess() {
     if (processing) return
-    setShowProcessCmd(false)
     setProcessing(true)
     setProcessingStartedAt(new Date().toISOString())
     setProcessingFinishedAt(null)
     setPodcast((prev) => ({ ...prev, status: 'downloading', error_message: null, progress: 0 }))
 
     try {
-      processPodcast(podcastId).catch((err) => {
-        console.error('Processing failed:', err)
-      })
+      await processPodcast(podcastId)
     } catch (err) {
-      console.error(err)
+      console.error('Processing failed:', err)
       setProcessing(false)
     }
-  }
-
-  function handleCopyCmd() {
-    navigator.clipboard.writeText(`npm run process -- ${podcastId}`)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   async function handleCancel() {
@@ -332,45 +316,6 @@ export default function PodcastDetail() {
         />
       )}
 
-      {/* Process command modal */}
-      {showProcessCmd && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowProcessCmd(false)}>
-          <div className="bg-gray-900 border border-white/10 rounded-xl p-6 max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white mb-2">Process Podcast</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Audio download requires yt-dlp running locally. Run this command in your project directory:
-            </p>
-            <div className="bg-black/50 border border-white/10 rounded-lg p-3 flex items-center gap-2">
-              <code className="text-sm text-green-400 font-mono flex-1 select-all">
-                npm run process -- {podcastId}
-              </code>
-              <button
-                onClick={handleCopyCmd}
-                className="text-xs px-2 py-1 bg-white/10 hover:bg-white/20 text-gray-300 rounded transition-colors flex-shrink-0"
-              >
-                {copied ? '✓ Copied' : 'Copy'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-3">
-              This downloads audio via yt-dlp, uploads to Supabase Storage, then triggers the full processing pipeline (transcription → embeddings → insights). Requires yt-dlp installed (<code className="text-gray-400">pip install yt-dlp</code>).
-            </p>
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={handleProcessConfirm}
-                className="text-sm px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-              >
-                Try Direct Processing Anyway
-              </button>
-              <button
-                onClick={() => setShowProcessCmd(false)}
-                className="text-sm px-4 py-2 bg-white/5 border border-white/10 hover:border-white/20 text-gray-300 rounded-lg transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
