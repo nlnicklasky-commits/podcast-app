@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 
 # Audio files from yt-dlp downloads
+*.webm
 *.m4a
 *.opus
 *.mp3
