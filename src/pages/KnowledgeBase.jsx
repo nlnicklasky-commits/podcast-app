@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
-import { listPodcasts, addPodcast, removePodcastFromKB } from '../services/podcasts'
+import { listPodcasts, addPodcast, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import AddPodcastModal from '../components/AddPodcastModal'
 import PodcastCard from '../components/PodcastCard'
 import ChatPanel from '../components/ChatPanel'
@@ -38,6 +38,12 @@ export default function KnowledgeBase() {
 
   async function handleAddPodcast(url) {
     const { podcast, alreadyProcessed } = await addPodcast(id, url)
+    setPodcasts((prev) => [podcast, ...prev])
+    return { alreadyProcessed }
+  }
+
+  async function handleAddFromIndex(episode) {
+    const { podcast, alreadyProcessed } = await addPodcastFromIndex(id, episode)
     setPodcasts((prev) => [podcast, ...prev])
     return { alreadyProcessed }
   }
@@ -164,7 +170,7 @@ export default function KnowledgeBase() {
               <p className="text-4xl mb-3">📻</p>
               <p className="text-gray-400 mb-1">No podcasts yet</p>
               <p className="text-sm text-gray-500">
-                Add a YouTube podcast URL to get started.
+                Search for a podcast to get started.
               </p>
               <button
                 onClick={() => setShowAdd(true)}
@@ -196,6 +202,7 @@ export default function KnowledgeBase() {
         <AddPodcastModal
           onClose={() => setShowAdd(false)}
           onAdd={handleAddPodcast}
+          onAddFromIndex={handleAddFromIndex}
         />
       )}
     </div>

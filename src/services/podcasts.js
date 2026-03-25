@@ -181,6 +181,83 @@ export async function addPodcast(knowledgeBaseId, url) {
 }
 
 /**
+ * Add a podcast episode from Podcast Index, optionally linking to a KB.
+ *
+ * Dedup logic: check by episode_index_id.
+ * The episode metadata (title, channel, enclosure_url, etc.) comes from
+ * the Podcast Index API via the frontend.
+ *
+ * Returns { podcast, alreadyProcessed }
+ */
+export async function addPodcastFromIndex(knowledgeBaseId, episode) {
+  // Check for existing by Podcast Index episode ID
+  if (episode.id) {
+    const { data: existing } = await supabase
+      .from('podcasts')
+      .select('*')
+      .eq('episode_index_id', episode.id)
+      .maybeSingle()
+
+    if (existing) {
+      if (knowledgeBaseId) {
+        const { error: linkError } = await supabase
+          .from('knowledge_base_podcasts')
+          .insert({
+            knowledge_base_id: knowledgeBaseId,
+            podcast_id: existing.id,
+          })
+
+        if (linkError) {
+          if (linkError.code === '23505') {
+            throw new Error('This episode is already in this knowledge base')
+          }
+          throw linkError
+        }
+      } else {
+        throw new Error('This episode has already been added')
+      }
+
+      return { podcast: existing, alreadyProcessed: existing.status === 'ready' }
+    }
+  }
+
+  // New episode — create podcast row with Podcast Index metadata
+  const { data: podcast, error } = await supabase
+    .from('podcasts')
+    .insert({
+      title: episode.title,
+      channel: episode.showTitle,
+      thumbnail_url: episode.image || episode.showArtwork,
+      url: episode.link || episode.enclosureUrl,
+      enclosure_url: episode.enclosureUrl,
+      podcast_index_id: episode.feedId,
+      episode_index_id: episode.id,
+      feed_url: episode.feedUrl || null,
+      source: 'podcast_index',
+      duration_seconds: episode.duration || null,
+      status: 'pending',
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+
+  // Link to KB if provided
+  if (knowledgeBaseId) {
+    const { error: linkError } = await supabase
+      .from('knowledge_base_podcasts')
+      .insert({
+        knowledge_base_id: knowledgeBaseId,
+        podcast_id: podcast.id,
+      })
+
+    if (linkError) throw linkError
+  }
+
+  return { podcast, alreadyProcessed: false }
+}
+
+/**
  * Remove a podcast from a knowledge base.
  *
  * This unlinks the podcast from the KB. If no other KBs reference it,

@@ -4,7 +4,7 @@ import { listKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase } from '..
 import { listAllPodcasts } from '../services/podcasts'
 import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
-import { addPodcast } from '../services/podcasts'
+import { addPodcast, addPodcastFromIndex } from '../services/podcasts'
 import { formatDate, statusColors } from '../lib/utils'
 
 export default function Home() {
@@ -46,10 +46,13 @@ export default function Home() {
   }
 
   async function handleAddStandalonePodcast(url) {
-    // Add without a KB — we pass null as knowledgeBaseId
-    // We need a slightly different flow: just create the podcast row
-    // Use a temporary "unlinked" approach — add to podcasts table directly
     const { podcast, alreadyProcessed } = await addPodcast(null, url)
+    setPodcasts((prev) => [podcast, ...prev])
+    return { alreadyProcessed }
+  }
+
+  async function handleAddFromIndex(episode) {
+    const { podcast, alreadyProcessed } = await addPodcastFromIndex(null, episode)
     setPodcasts((prev) => [podcast, ...prev])
     return { alreadyProcessed }
   }
@@ -186,7 +189,7 @@ export default function Home() {
               <p className="text-4xl mb-3">📻</p>
               <p className="text-gray-400 mb-1">No podcasts yet</p>
               <p className="text-sm text-gray-500">
-                Add a YouTube podcast URL to get started.
+                Search for a podcast to get started.
               </p>
               <button
                 onClick={() => setShowAddPodcast(true)}
@@ -253,6 +256,7 @@ export default function Home() {
         <AddPodcastModal
           onClose={() => setShowAddPodcast(false)}
           onAdd={handleAddStandalonePodcast}
+          onAddFromIndex={handleAddFromIndex}
         />
       )}
     </div>
