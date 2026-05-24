@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import * as Icons from './Icons'
 
 const STEPS = [
   { id: 'downloading', label: 'Download' },
@@ -67,16 +68,6 @@ function formatElapsed(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-/**
- * Processing progress bar with step tracker and elapsed timer.
- *
- * Props:
- *   status     – one of: pending, downloading, transcribing, processing, ready, error
- *   compact    – if true, renders a smaller version for cards (default false)
- *   progress   – 0-100 overall progress from the DB (written directly by edge function)
- *   startedAt  – optional ISO timestamp for when processing started
- *   finishedAt – optional ISO timestamp for when processing finished
- */
 export default function ProcessingProgress({ status = 'pending', compact = false, progress = 0, startedAt, finishedAt }) {
   const currentIdx = STATUS_INDEX[status] ?? -1
   const isError = status === 'error'
@@ -84,36 +75,37 @@ export default function ProcessingProgress({ status = 'pending', compact = false
   const isDone = status === 'ready'
 
   const elapsed = useElapsedTimer(isActive, startedAt, isDone ? finishedAt : null)
-
-  // Use the actual progress value from the DB
   const pct = isDone ? 100 : isError ? 0 : Math.round(progress || 0)
 
   if (compact) {
     return (
       <div className="mt-2">
-        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+        <div
+          className="h-[3px] overflow-hidden"
+          style={{ background: 'var(--surface)', borderRadius: 2 }}
+        >
           <div
-            className={`h-full rounded-full transition-all duration-700 ease-out ${
-              isError
-                ? 'bg-red-500'
-                : isDone
-                  ? 'bg-green-500'
-                  : 'bg-purple-500'
-            }`}
-            style={{ width: `${pct}%` }}
+            className="h-full transition-all duration-700 ease-out"
+            style={{
+              width: `${pct}%`,
+              background: isError ? 'var(--error)' : isDone ? 'oklch(0.72 0.14 150)' : 'var(--accent)',
+            }}
           />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className={`text-xs ${isError ? 'text-red-400' : 'text-gray-400'}`}>
+          <span className="text-[11px]" style={{ color: isError ? 'var(--error)' : 'var(--text-mute)' }}>
             {STATUS_MESSAGES[status]}
           </span>
           <div className="flex items-center gap-2">
             {(isActive || (isDone && elapsed > 0)) && (
-              <span className="text-xs text-gray-500 tabular-nums font-mono">
+              <span className="text-[11px] mono mute tabular-nums">
                 {formatElapsed(elapsed)}
               </span>
             )}
-            <span className={`text-xs tabular-nums ${isDone ? 'text-green-400' : 'text-purple-400'}`}>
+            <span
+              className="text-[11px] mono tabular-nums"
+              style={{ color: isDone ? 'oklch(0.72 0.14 150)' : 'var(--accent)' }}
+            >
               {pct}%
             </span>
           </div>
@@ -123,7 +115,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
   }
 
   return (
-    <div className="mt-3">
+    <div>
       {/* Step tracker */}
       <div className="flex items-center justify-between mb-3">
         {STEPS.map((step, i) => {
@@ -134,46 +126,53 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             <div key={step.id} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium transition-all duration-500 ${
-                    isCompleted
-                      ? 'bg-green-500 text-white'
+                  className="w-5 h-5 sm:w-6 sm:h-6 rounded-full grid place-items-center text-[10px] sm:text-[11px] font-medium transition-all duration-500"
+                  style={{
+                    background: isCompleted
+                      ? 'oklch(0.72 0.14 150)'
                       : isCurrent
-                        ? 'bg-purple-500 text-white ring-2 ring-purple-500/30'
+                        ? 'var(--accent)'
                         : isError && currentIdx === i
-                          ? 'bg-red-500 text-white'
-                          : 'bg-white/10 text-gray-500'
-                  }`}
+                          ? 'var(--error)'
+                          : 'var(--surface)',
+                    color: isCompleted || isCurrent || (isError && currentIdx === i)
+                      ? 'oklch(0.18 0.02 50)'
+                      : 'var(--text-mute)',
+                    boxShadow: isCurrent ? '0 0 0 3px var(--accent-soft)' : 'none',
+                  }}
                 >
                   {isCompleted ? (
-                    <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Icons.Check size={12} />
                   ) : (
                     i + 1
                   )}
                 </div>
                 <span
-                  className={`text-[10px] sm:text-xs mt-1 whitespace-nowrap ${
-                    isCompleted
-                      ? 'text-green-400'
+                  className="text-[10px] sm:text-[11px] mt-1 whitespace-nowrap mono"
+                  style={{
+                    color: isCompleted
+                      ? 'oklch(0.72 0.14 150)'
                       : isCurrent
-                        ? 'text-purple-400 font-medium'
-                        : 'text-gray-500'
-                  }`}
+                        ? 'var(--accent)'
+                        : 'var(--text-mute)',
+                    fontWeight: isCurrent ? 500 : 400,
+                  }}
                 >
                   {step.label}
                 </span>
               </div>
 
-              {/* Connector line */}
               {i < STEPS.length - 1 && (
-                <div className="flex-1 h-0.5 mx-1 sm:mx-2 mt-[-1rem] bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="flex-1 h-[2px] mx-1 sm:mx-2 mt-[-1rem] overflow-hidden"
+                  style={{ background: 'var(--surface)', borderRadius: 2 }}
+                >
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ease-out ${
-                      isCompleted ? 'bg-green-500' : isCurrent ? 'bg-purple-500 animate-pulse' : ''
-                    }`}
+                    className="h-full transition-all duration-700 ease-out"
                     style={{
                       width: isCompleted ? '100%' : isCurrent ? '50%' : '0%',
+                      background: isCompleted ? 'oklch(0.72 0.14 150)' : 'var(--accent)',
+                      opacity: isCurrent ? 0.7 : 1,
                     }}
                   />
                 </div>
@@ -183,35 +182,48 @@ export default function ProcessingProgress({ status = 'pending', compact = false
         })}
       </div>
 
-      {/* Full-width progress bar */}
-      <div className="h-1.5 sm:h-2 bg-white/5 rounded-full overflow-hidden">
+      {/* Progress bar */}
+      <div
+        className="h-[4px] sm:h-[5px] overflow-hidden"
+        style={{ background: 'var(--surface)', borderRadius: 3 }}
+      >
         <div
-          className={`h-full rounded-full transition-all duration-700 ease-out ${
-            isError
-              ? 'bg-red-500'
+          className={`h-full transition-all duration-700 ease-out ${isActive && status === 'transcribing' ? 'animate-progress-shimmer' : ''}`}
+          style={{
+            width: `${pct}%`,
+            background: isError
+              ? 'var(--error)'
               : isDone
-                ? 'bg-green-500'
-                : 'bg-gradient-to-r from-purple-600 to-purple-400'
-          } ${isActive && status === 'transcribing' ? 'animate-progress-shimmer' : ''}`}
-          style={{ width: `${pct}%` }}
+                ? 'oklch(0.72 0.14 150)'
+                : 'var(--accent)',
+            borderRadius: 3,
+          }}
         />
       </div>
 
       {/* Status message + timer + percentage */}
       <div className="flex items-center justify-between mt-2">
-        <span className={`text-sm ${isError ? 'text-red-400' : isDone ? 'text-green-400' : 'text-gray-300'}`}>
+        <span className="text-[13px] flex items-center gap-2" style={{
+          color: isError ? 'var(--error)' : isDone ? 'oklch(0.72 0.14 150)' : 'var(--text-dim)',
+        }}>
           {isActive && (
-            <span className="inline-block w-1.5 h-1.5 bg-purple-400 rounded-full mr-2 animate-pulse" />
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: 'var(--accent)', animation: 'pulse-dot 1.2s ease-in-out infinite' }}
+            />
           )}
           {STATUS_MESSAGES[status]}
         </span>
         <div className="flex items-center gap-3">
           {(isActive || (isDone && elapsed > 0)) && (
-            <span className="text-sm text-gray-400 tabular-nums font-mono">
+            <span className="text-[12px] mono mute tabular-nums">
               {formatElapsed(elapsed)}
             </span>
           )}
-          <span className={`text-sm tabular-nums ${isDone ? 'text-green-400' : 'text-gray-400'}`}>
+          <span
+            className="text-[12px] mono tabular-nums"
+            style={{ color: isDone ? 'oklch(0.72 0.14 150)' : 'var(--text-dim)' }}
+          >
             {pct}%
           </span>
         </div>

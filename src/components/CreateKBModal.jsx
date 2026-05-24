@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import * as Icons from './Icons'
 
 export default function CreateKBModal({ onClose, onCreate }) {
   const [name, setName] = useState('')
@@ -19,25 +20,50 @@ export default function CreateKBModal({ onClose, onCreate }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-      <div className="bg-[#1a1a24] border border-white/10 rounded-t-xl sm:rounded-xl w-full max-w-md p-4 sm:p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">
-          New Knowledge Base
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-5"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md fade-in"
+        style={{
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-lg)',
+        }}
+      >
+        <div
+          className="flex items-center px-[18px] py-3.5"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h3 className="m-0 text-[15px] font-medium">New Knowledge Base</h3>
+          <button onClick={onClose} className="ml-auto mute">
+            <Icons.X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-[18px] space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Name</label>
+            <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., AI Startups"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+              className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                color: 'var(--text)',
+              }}
               autoFocus
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">
+            <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">
               Description (optional)
             </label>
             <textarea
@@ -45,21 +71,32 @@ export default function CreateKBModal({ onClose, onCreate }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What topics does this cover?"
               rows={3}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors resize-none"
+              className="w-full px-3 py-2 text-[13.5px] outline-none resize-none transition-colors"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                color: 'var(--text)',
+              }}
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm dim transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim() || loading}
-              className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{
+                background: 'var(--accent)',
+                color: 'var(--accent-fg)',
+                borderRadius: 'var(--r-md)',
+              }}
             >
               {loading ? 'Creating...' : 'Create'}
             </button>

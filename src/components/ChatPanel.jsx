@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { sendMessage, listConversations, getMessages } from '../services/chat'
-import { formatDate } from '../lib/utils'
+import { formatTimestamp } from '../lib/utils'
+import * as Icons from './Icons'
 
-export default function ChatPanel({ knowledgeBaseId }) {
+export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount = 0 }) {
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [showSidebar, setShowSidebar] = useState(false)
-  const messagesEndRef = useRef(null)
+  const endRef = useRef(null)
 
   useEffect(() => {
     listConversations(knowledgeBaseId).then(setConversations).catch(console.error)
@@ -23,25 +23,19 @@ export default function ChatPanel({ knowledgeBaseId }) {
   }, [activeConvId])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    endRef.current?.scrollTo({ top: 999999, behavior: 'smooth' })
+  }, [messages, loading])
 
-  async function handleSend(e) {
-    e.preventDefault()
-    if (!input.trim() || loading) return
-
-    const question = input.trim()
+  async function send(text) {
+    if (!text.trim() || loading) return
+    const question = text.trim()
     setInput('')
     setError(null)
-
-    // Optimistically add user message
     setMessages((prev) => [...prev, { role: 'user', content: question, id: 'temp-user' }])
     setLoading(true)
 
     try {
       const result = await sendMessage(knowledgeBaseId, question, activeConvId)
-
-      // Update conversation ID
       if (!activeConvId && result.conversation_id) {
         setActiveConvId(result.conversation_id)
         setConversations((prev) => [
@@ -49,8 +43,6 @@ export default function ChatPanel({ knowledgeBaseId }) {
           ...prev,
         ])
       }
-
-      // Replace temp message and add assistant response
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== 'temp-user'),
         { role: 'user', content: question },
@@ -64,183 +56,230 @@ export default function ChatPanel({ knowledgeBaseId }) {
     }
   }
 
-  function startNewConversation() {
+  function startNew() {
     setActiveConvId(null)
     setMessages([])
-    setShowSidebar(false)
   }
 
-  function selectConversation(id) {
-    setActiveConvId(id)
-    setShowSidebar(false)
-  }
-
-  function formatTimestamp(seconds) {
-    if (!seconds) return '0:00'
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    const s = Math.floor(seconds % 60)
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    return `${m}:${String(s).padStart(2, '0')}`
-  }
+  const starters = [
+    'What are the key takeaways?',
+    'Compare different viewpoints',
+    'Summarize the latest episodes',
+    'Find quotes about a specific topic',
+  ]
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-16rem)] sm:h-[600px]">
-      {/* Conversation sidebar — hidden on mobile, toggled via button */}
-      <div className={`${showSidebar ? 'fixed inset-0 z-40 flex' : 'hidden'} sm:relative sm:flex sm:z-auto`}>
-        {/* Backdrop on mobile */}
-        {showSidebar && (
-          <div
-            className="fixed inset-0 bg-black/50 sm:hidden"
-            onClick={() => setShowSidebar(false)}
-          />
-        )}
-        <div className="relative z-10 w-64 sm:w-56 flex-shrink-0 border border-white/10 rounded-xl overflow-hidden flex flex-col bg-[#1a1a24] sm:bg-transparent">
-          <div className="p-3 border-b border-white/10 flex items-center gap-2">
-            <button
-              onClick={startNewConversation}
-              className="flex-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-            >
-              + New Chat
+    <>
+      {/* Header */}
+      <div className="px-[18px] pt-4 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <Icons.Sparkle size={14} style={{ color: 'var(--accent)' }} />
+          <span className="text-[11px] mono mute uppercase tracking-[0.1em]">
+            Ask {kbName}
+          </span>
+          <div className="ml-auto flex gap-1">
+            <button onClick={startNew} title="New chat" className="mute p-1">
+              <Icons.Plus size={14} />
             </button>
-            <button
-              onClick={() => setShowSidebar(false)}
-              className="sm:hidden p-1.5 text-gray-400 hover:text-white"
-            >
-              ✕
+            <button title="History" className="mute p-1">
+              <Icons.More size={14} />
             </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => selectConversation(conv.id)}
-                className={`w-full text-left px-3 py-2 text-sm border-b border-white/5 transition-colors ${
-                  activeConvId === conv.id
-                    ? 'bg-purple-600/20 text-purple-300'
-                    : 'text-gray-400 hover:bg-white/5'
-                }`}
-              >
-                <p className="truncate">{conv.title || 'Untitled'}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{formatDate(conv.created_at)}</p>
-              </button>
-            ))}
-            {conversations.length === 0 && (
-              <p className="text-xs text-gray-500 p-3">No conversations yet</p>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex-1 border border-white/10 rounded-xl overflow-hidden flex flex-col min-w-0">
-        {/* Mobile header with sidebar toggle */}
-        <div className="flex items-center gap-2 p-2 border-b border-white/10 sm:hidden">
-          <button
-            onClick={() => setShowSidebar(true)}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
-            title="Conversations"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="text-sm text-gray-400 flex-1 truncate">
-            {activeConvId ? (conversations.find(c => c.id === activeConvId)?.title || 'Chat') : 'New Chat'}
-          </span>
-          <button
-            onClick={startNewConversation}
-            className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-          >
-            + New
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center py-8 sm:py-12">
-              <p className="text-3xl mb-2">💬</p>
-              <p className="text-gray-400">Ask a question about your podcasts</p>
-              <p className="text-sm text-gray-500 mt-1">
-                I'll search across all transcripts and cite my sources.
-              </p>
+      {/* Messages */}
+      <div ref={endRef} className="flex-1 overflow-y-auto px-[18px] py-4">
+        {messages.length === 0 && !loading && (
+          <div className="fade-in">
+            <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-2.5">Try</div>
+            <div className="flex flex-col gap-1.5">
+              {starters.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="text-left px-3 py-2.5 text-[13px] serif italic transition-colors"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-dim)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 50%)'
+                    e.currentTarget.style.color = 'var(--text)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.color = 'var(--text-dim)'
+                  }}
+                >
+                  &ldquo;{s}&rdquo;
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-[18px]">
           {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[90%] sm:max-w-[80%] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-white/5 border border-white/10 text-gray-200'
-                }`}
+            <MessageBubble key={i} msg={msg} />
+          ))}
+          {loading && <ThinkingDots />}
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="px-[18px] py-2 text-[12px]" style={{ color: 'var(--error)', background: 'color-mix(in oklab, var(--error), transparent 90%)' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="p-3.5" style={{ borderTop: '1px solid var(--border)' }}>
+        <form
+          onSubmit={(e) => { e.preventDefault(); send(input) }}
+          className="flex items-end gap-2"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-md)',
+            padding: '8px 10px',
+          }}
+        >
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) }
+            }}
+            placeholder="Ask about these podcasts..."
+            rows={1}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-[13.5px] leading-relaxed"
+            style={{ maxHeight: 120, color: 'var(--text)' }}
+            disabled={loading}
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || loading}
+            className="w-[30px] h-[30px] rounded-[7px] grid place-items-center transition-colors shrink-0"
+            style={{
+              background: input.trim() ? 'var(--accent)' : 'var(--surface-2)',
+              color: input.trim() ? 'var(--accent-fg)' : 'var(--text-mute)',
+            }}
+          >
+            <Icons.Send size={14} />
+          </button>
+        </form>
+        <div className="mt-1.5 text-[10px] mono mute flex justify-between">
+          <span>↵ send · ⇧↵ newline</span>
+          <span>scoped to KB</span>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function MessageBubble({ msg }) {
+  if (msg.role === 'user') {
+    return (
+      <div className="flex justify-end">
+        <div
+          className="max-w-[85%] px-3.5 py-2.5 text-[13.5px] leading-relaxed"
+          style={{
+            background: 'var(--accent-faint)',
+            border: '1px solid var(--accent-soft)',
+            color: 'var(--text)',
+            borderRadius: 'var(--r-md)',
+          }}
+        >
+          {msg.content}
+        </div>
+      </div>
+    )
+  }
+
+  const parts = msg.content.split(/(\[\d+\]|\*\*[^*]+\*\*)/g)
+
+  return (
+    <div className="fade-in text-[14px] leading-[1.6]" style={{ color: 'var(--text)' }}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <div
+          className="w-[18px] h-[18px] rounded grid place-items-center"
+          style={{ background: 'var(--accent)' }}
+        >
+          <Icons.Sparkle size={11} style={{ color: 'var(--accent-fg)' }} />
+        </div>
+        <span className="text-[11px] mono mute">PodBrain</span>
+      </div>
+      <div style={{ whiteSpace: 'pre-wrap' }}>
+        {parts.map((part, i) => {
+          const bold = part.match(/^\*\*(.+)\*\*$/)
+          if (bold) return <strong key={i} className="font-semibold">{bold[1]}</strong>
+
+          const cit = part.match(/^\[(\d+)\]$/)
+          if (cit) {
+            const src = msg.sources?.find((s, idx) => idx + 1 === Number(cit[1]))
+            return (
+              <span
+                key={i}
+                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-[5px] rounded text-[10px] mono mx-0.5 align-baseline"
+                style={{
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent-soft)',
+                }}
+                title={src ? `${src.podcast_title} @ ${formatTimestamp(src.start_time)}` : ''}
               >
-                <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                {msg.sources && msg.sources.length > 0 && (
-                  <div className="mt-3 pt-2 border-t border-white/10">
-                    <p className="text-xs text-gray-400 mb-1.5">Sources:</p>
-                    <div className="space-y-1">
-                      {msg.sources.slice(0, 5).map((src, j) => (
-                        <div
-                          key={j}
-                          className="text-xs text-gray-400 bg-white/5 rounded px-2 py-1"
-                        >
-                          <span className="text-purple-400">[{j + 1}]</span>{' '}
-                          {src.podcast_title} at {formatTimestamp(src.start_time)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                {cit[1]}
+              </span>
+            )
+          }
+          return <span key={i}>{part}</span>
+        })}
+      </div>
+
+      {msg.sources && msg.sources.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1">
+          {msg.sources.slice(0, 5).map((s, j) => (
+            <div
+              key={j}
+              className="flex items-center gap-2 px-2.5 py-1.5 text-[11.5px] w-full"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-sm)',
+                color: 'var(--text-dim)',
+              }}
+            >
+              <span className="mono text-[10px]" style={{ color: 'var(--accent)' }}>[{j + 1}]</span>
+              <span className="flex-1 truncate">{s.podcast_title}</span>
+              <span className="mono text-[10px] mute">{formatTimestamp(s.start_time)}</span>
             </div>
           ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce [animation-delay:0.1s]" />
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
         </div>
+      )}
+    </div>
+  )
+}
 
-        {/* Error */}
-        {error && (
-          <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Input */}
-        <form onSubmit={handleSend} className="p-2 sm:p-3 border-t border-white/10">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about your podcasts..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors text-sm"
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              className="px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg transition-colors text-sm flex-shrink-0"
-            >
-              Send
-            </button>
-          </div>
-        </form>
-      </div>
+function ThinkingDots() {
+  return (
+    <div className="fade-in flex items-center gap-2 mute text-[12px] mono">
+      <span className="inline-flex gap-[3px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-[5px] h-[5px] rounded-full"
+            style={{
+              background: 'var(--accent)',
+              animation: `pulse-dot 1.2s ease-in-out ${i * 0.18}s infinite`,
+            }}
+          />
+        ))}
+      </span>
+      searching chunks...
     </div>
   )
 }

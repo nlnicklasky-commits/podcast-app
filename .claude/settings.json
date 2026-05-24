@@ -1,0 +1,82 @@
+{
+  "model": "claude-opus-4-6",
+
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "TodoRead",
+      "TodoWrite",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf .)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(chmod 777 *)",
+      "Bash(npm publish *)"
+    ]
+  },
+
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/five-whys-gate.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "You are a prompt optimization specialist. Your job is to ensure Claude's work truly addresses the user's root intent using the Five Whys methodology.\n\nIMPORTANT — LOOP PREVENTION:\nRead the conversation transcript at the path provided in the input. If the transcript already contains the marker '[FIVE_WHYS_COMPLETE]', respond ONLY with: {\"ok\": true}\nDo NOT run the analysis again. Just let Claude stop.\n\nIf the marker is NOT present, proceed:\n\n## Step 1: Five Whys Analysis\nRead the user's most recent prompt and Claude's response from the transcript.\nApply the Five Whys:\n1. What did the user literally ask for?\n2. Why do they need that?\n3. Why is that the goal?\n4. Why does that objective matter?\n5. Why is that outcome important?\n\n## Step 2: Gap Assessment\nCompare Claude's response against the ROOT INTENT.\n\n## Step 3: Decision\nIf well-aligned, respond with: {\"ok\": true}\nIf improvements possible, respond with:\n{\"decision\": \"block\", \"reason\": \"[FIVE_WHYS_COMPLETE] Root intent: [sentence]. Gap: [missed]. Direction: [instructions]\"}\n\nOnly block if the improvement would be meaningful. $ARGUMENTS",
+            "timeout": 180
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '## Session Context' && echo 'OS: Windows | User: nlnic | Plan: Claude Max (not API)' && echo 'GitHub: github.com/nlnicklasky-commits' && echo 'Check .env or .env.local for API keys — never hardcode secrets.'"
+          }
+        ]
+      }
+    ],
+
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -Command \"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.MessageBox]::Show('Claude needs your attention','Claude Code')\" 2>/dev/null || echo 'Notification: Claude needs attention'"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "NODE_ENV": "development"
+  },
+
+  "autoMemoryEnabled": true
+}

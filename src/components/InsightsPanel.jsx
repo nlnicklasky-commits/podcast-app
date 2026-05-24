@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getInsights } from '../services/processing'
+import { Tag } from './ui'
+import * as Icons from './Icons'
 
 export default function InsightsPanel({ podcastId, podcastTitle }) {
   const [insights, setInsights] = useState(null)
@@ -13,88 +15,118 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
   }, [podcastId])
 
   if (loading) {
-    return <div className="animate-pulse text-gray-400 py-8 text-center">Loading insights...</div>
+    return <div className="mute py-8 text-center text-sm">Loading insights...</div>
   }
 
   if (!insights) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 mute">
         No insights generated yet. Process this podcast first.
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-[18px]">
       {/* Summary */}
       {insights.summary && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-2">
-            Summary
-          </h3>
-          <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+        <div
+          className="p-[18px]"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2.5">
+            <Icons.Sparkle size={13} style={{ color: 'var(--accent)' }} />
+            <span className="text-[11px] mono mute uppercase tracking-[0.1em]">Summary</span>
+          </div>
+          <p className="serif text-[16px] leading-relaxed tracking-tight m-0" style={{ color: 'var(--text)' }}>
             {insights.summary}
           </p>
         </div>
       )}
 
-      {/* Topics */}
-      {insights.topics?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
-            Topics
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {insights.topics.map((topic, i) => (
-              <span
-                key={i}
-                className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm"
-              >
-                {topic}
-              </span>
+      {/* Key Points */}
+      {insights.key_points?.length > 0 && (
+        <div
+          className="p-[18px]"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+          }}
+        >
+          <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">Key points</div>
+          <div className="flex flex-col gap-2.5">
+            {insights.key_points.map((k, i) => (
+              <div key={i} className="flex gap-3">
+                <span className="mono text-[11px] pt-[3px]" style={{ color: 'var(--accent)' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <p className="m-0 text-[14px] leading-relaxed" style={{ color: 'var(--text)' }}>{k}</p>
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Key Points */}
-      {insights.key_points?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
-            Key Points
-          </h3>
-          <ul className="space-y-2">
-            {insights.key_points.map((point, i) => (
-              <li key={i} className="flex gap-2 text-sm text-gray-300">
-                <span className="text-purple-400 flex-shrink-0">•</span>
-                <span>{point}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Topics */}
+      {insights.topics?.length > 0 && (
+        <div
+          className="p-[18px]"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+          }}
+        >
+          <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">Topics</div>
+          <div className="flex flex-wrap gap-1.5">
+            {insights.topics.map((t) => <Tag key={t} variant="accent">{t}</Tag>)}
+          </div>
         </div>
       )}
 
       {/* Entities */}
       {insights.entities?.length > 0 && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
-          <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide mb-3">
+        <div
+          className="p-[18px]"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+          }}
+        >
+          <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">
             People, Companies & Concepts
-          </h3>
-          <div className="flex flex-wrap gap-2">
+          </div>
+          <div className="flex flex-wrap gap-1.5">
             {insights.entities.map((entity, i) => {
               const typeColors = {
-                person: 'bg-blue-500/20 text-blue-300',
-                company: 'bg-green-500/20 text-green-300',
-                product: 'bg-orange-500/20 text-orange-300',
-                concept: 'bg-yellow-500/20 text-yellow-300',
+                person: 'oklch(0.72 0.12 230)',
+                company: 'oklch(0.72 0.12 150)',
+                product: 'oklch(0.72 0.13 50)',
+                concept: 'oklch(0.75 0.13 75)',
               }
-              const colorClass = typeColors[entity.type] || 'bg-gray-500/20 text-gray-300'
+              const c = typeColors[entity.type] || 'var(--text-mute)'
               return (
                 <span
                   key={i}
-                  className={`px-3 py-1 rounded-full text-sm ${colorClass}`}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] mono"
+                  style={{
+                    background: 'var(--bg-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 999,
+                    color: 'var(--text-dim)',
+                  }}
                   title={entity.type}
                 >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: c }}
+                  />
                   {entity.name}
                 </span>
               )

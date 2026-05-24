@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { listKnowledgeBases } from '../services/knowledgeBases'
 import { addPodcastToKB } from '../services/podcasts'
+import { KBGlyph } from './ui'
+import * as Icons from './Icons'
 
 export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, onAdded }) {
   const [knowledgeBases, setKnowledgeBases] = useState([])
@@ -40,61 +42,101 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
   )
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-      <div className="bg-[#1a1a24] border border-white/10 rounded-t-xl sm:rounded-xl w-full max-w-md p-4 sm:p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">
-          Add to Knowledge Base
-        </h2>
-
-        {loading ? (
-          <div className="py-8 text-center">
-            <div className="animate-pulse text-gray-400">Loading knowledge bases...</div>
-          </div>
-        ) : availableKBs.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-gray-400 mb-1">
-              {knowledgeBases.length === 0
-                ? 'No knowledge bases yet'
-                : 'Already in all knowledge bases'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {knowledgeBases.length === 0
-                ? 'Create a knowledge base first from the home page.'
-                : 'This podcast is already linked to every knowledge base.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {availableKBs.map((kb) => (
-              <button
-                key={kb.id}
-                onClick={() => handleAdd(kb)}
-                disabled={adding === kb.id}
-                className="w-full text-left bg-white/5 border border-white/10 rounded-lg p-3 hover:border-purple-500/50 hover:bg-white/[0.07] transition-all disabled:opacity-50"
-              >
-                <span className="text-white font-medium">{kb.name}</span>
-                {kb.description && (
-                  <span className="text-sm text-gray-500 block mt-0.5 truncate">
-                    {kb.description}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <p className="text-red-400 text-sm mt-3">{error}</p>
-        )}
-
-        <div className="flex justify-end pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-          >
-            Cancel
+    <div
+      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md fade-in"
+        style={{
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-lg)',
+        }}
+      >
+        <div
+          className="flex items-center px-[18px] py-3.5"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <h3 className="m-0 text-[15px] font-medium">Add to Knowledge Base</h3>
+          <button onClick={onClose} className="ml-auto mute">
+            <Icons.X size={16} />
           </button>
+        </div>
+
+        <div className="p-[18px]">
+          {loading ? (
+            <div className="py-8 text-center mute text-[13px]">Loading knowledge bases...</div>
+          ) : availableKBs.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="dim text-[14px] mb-1">
+                {knowledgeBases.length === 0
+                  ? 'No knowledge bases yet'
+                  : 'Already in all knowledge bases'}
+              </p>
+              <p className="mute text-[13px]">
+                {knowledgeBases.length === 0
+                  ? 'Create a knowledge base first from the home page.'
+                  : 'This podcast is already linked to every knowledge base.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {availableKBs.map((kb) => (
+                <button
+                  key={kb.id}
+                  onClick={() => handleAdd(kb)}
+                  disabled={adding === kb.id}
+                  className="w-full flex items-center gap-3 text-left p-3 transition-colors disabled:opacity-50"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 50%)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                  }}
+                >
+                  <KBGlyph name={kb.name} size={32} />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[14px] font-medium block" style={{ color: 'var(--text)' }}>
+                      {kb.name}
+                    </span>
+                    {kb.description && (
+                      <span className="text-[12px] dim block mt-0.5 truncate">
+                        {kb.description}
+                      </span>
+                    )}
+                  </div>
+                  {adding === kb.id && (
+                    <span
+                      className="w-4 h-4 rounded-full border-2 animate-spin shrink-0"
+                      style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <p className="text-[12px] mt-3" style={{ color: 'var(--error)' }}>{error}</p>
+          )}
+
+          <div className="flex justify-end pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm dim transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>

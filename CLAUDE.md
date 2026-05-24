@@ -1,4 +1,6 @@
-# CLAUDE.md — Podcast Knowledge Base
+# Podcast Knowledge Base — Personal Second Brain
+
+> **Bootstrapped by the setup agent** in `C:\Users\nlnic\Documents\Pre-project Builders`. Settings and this CLAUDE.md were copied and customized from the starter kit.
 
 ## Agent Rules
 
@@ -303,6 +305,54 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - If cancelled, `cleanup()` deletes partial transcripts/chunks/insights and resets status to `pending`
 - Edge function throws and exits
 
+## Environment
+
+- **OS:** Windows 11 — PowerShell is the local shell. Do not assume macOS/Linux paths or tools on the client side.
+- **User path:** C:\Users\nlnic\
+- **Plan:** Claude Max subscription. NOT using the Anthropic API key. Do not reference ANTHROPIC_API_KEY or attempt API-key-based workflows.
+- **Model:** Opus (set in .claude/settings.json)
+- **GitHub:** github.com/nlnicklasky-commits — all repos live under this org
+- **Email:** nl.nicklasky@gmail.com
+- **SSH key (DigitalOcean):** C:\Users\nlnic\.ssh\digitalocean
+
+## API Keys & Services
+
+All secrets live in `.env` or `.env.local` at project root (gitignored). NEVER hardcode keys in source files or this CLAUDE.md.
+
+| Service | Env Var(s) | What it's for |
+|---------|-----------|---------------|
+| **Supabase** | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Database, auth, RLS, realtime. Project: `podcast-brain` (id: vxxmlieonejwyojenrsh) |
+| **OpenAI** | `OPENAI_API_KEY` | Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights), GPT-4o-mini (chat). Server-side only via Edge Functions. |
+| **Podcast Index** | `PODCAST_INDEX_KEY`, `PODCAST_INDEX_SECRET` | Show search and episode listing via Podcast Index API. Server-side only via Edge Functions. |
+| **Notion** | `NOTION_API_KEY` | Shared across all projects. Used for logging, tracking, project state. Notion is the source of truth. |
+| **Vercel** | Vercel CLI auth | Deployment platform. Vercel org: `nick-laskys-projects`. Deploy with `vercel --prod`. Project: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG) |
+| **Railway** | Railway CLI auth | Cobalt + yt-session-generator deployment for YouTube fallback. Project: `stellar-love` (id: 62063223-f85f-44ab-9ff6-f4bbc5402337). Public URL: `https://cobalt-production-8df9.up.railway.app` |
+
+## Conventions
+
+- TypeScript everywhere, no `any` types
+- Functional React components with hooks only — no class components, no Redux
+- TailwindCSS for all styling — no CSS modules, no styled-components
+- Prettier + ESLint for formatting (auto-run via hooks)
+- Use `npm install --legacy-peer-deps` if peer dependency conflicts arise
+- Supabase queries: use `.limit(1)` instead of `.single()` to avoid errors on empty results
+- All generated images in SVG format when possible
+- Use `'use client'` only for interactive React components
+
+## Working with Nick
+
+- Give full, copy-pasteable commands. Never abbreviate or say "just SSH in" — paste the complete command with flags, paths, and env expansions in PowerShell-ready form.
+- Be concise. Don't summarize what he just told you back to him.
+- Notion is the source of truth for project state, roadmap, and data pipeline status. Search Notion before making assumptions about project status.
+- When a step is slow or long-running, explain what's happening and set expectations on timing.
+- Prefer practical, working code over theoretical explanations.
+
+## Hooks (active via .claude/settings.json)
+
+- **Five Whys Stop hook** — After each response, an Opus sub-agent applies Five Whys to your prompt, identifies root intent, and if meaningful improvements exist, rewrites an optimized continuation that Claude works on automatically. Max one cycle per prompt.
+- **Session context injection** — On session start/resume/compact, key environment info is re-injected so Claude never forgets the basics.
+- **Notification** — Windows notification when Claude needs attention.
+
 ## Nick's Setup
 
 - **OS**: Windows (PowerShell)
@@ -310,4 +360,4 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - **Supabase project**: `podcast-brain` (id: vxxmlieonejwyojenrsh)
 - **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
 - **Railway project**: `stellar-love` — Cobalt + yt-session-generator (YouTube fallback)
-- **Cobalt URL**:
+- **Cobalt URL**: https://cobalt-production-8df9.up.railway.app

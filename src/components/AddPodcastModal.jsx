@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
 import { searchShows, getEpisodes } from '../services/podcastIndex'
+import * as Icons from './Icons'
 
 export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
-  const [mode, setMode] = useState('search') // 'search' | 'url'
-  const [step, setStep] = useState('shows')   // 'shows' | 'episodes'
+  const [mode, setMode] = useState('search')
+  const [step, setStep] = useState('shows')
   const [query, setQuery] = useState('')
   const [url, setUrl] = useState('')
   const [shows, setShows] = useState([])
@@ -15,7 +16,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
 
-  // --- YouTube URL helpers ---
   function isValidYouTubeUrl(str) {
     try {
       const u = new URL(str)
@@ -25,7 +25,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
     }
   }
 
-  // --- Podcast Index search ---
   const handleSearch = useCallback(async (q) => {
     if (!q.trim() || q.trim().length < 2) {
       setShows([])
@@ -112,7 +111,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
     }
   }
 
-  // --- Formatters ---
   function formatDuration(seconds) {
     if (!seconds) return ''
     const h = Math.floor(seconds / 3600)
@@ -146,79 +144,121 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4">
-      <div className="bg-[#1a1a24] border border-white/10 rounded-t-xl sm:rounded-xl w-full max-w-xl p-4 sm:p-6 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
-
+    <div
+      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5"
+      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in"
+        style={{
+          background: 'var(--bg-2)',
+          border: '1px solid var(--border)',
+          borderRadius: '12px 12px var(--r-lg) var(--r-lg)',
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div
+          className="flex items-center px-[18px] py-3.5 shrink-0"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {step === 'episodes' && mode === 'search' && (
-              <button
-                onClick={handleBackToShows}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+              <button onClick={handleBackToShows} className="mute p-0.5">
+                <Icons.Back size={16} />
               </button>
             )}
-            <h2 className="text-xl font-semibold text-white">
+            <h3 className="m-0 text-[15px] font-medium truncate">
               {step === 'episodes' ? decodeHtml(selectedShow?.title) : 'Add Podcast'}
-            </h2>
+            </h3>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors text-lg">✕</button>
+          <button onClick={onClose} className="ml-auto mute shrink-0">
+            <Icons.X size={16} />
+          </button>
         </div>
 
-        {/* Mode tabs — only show on main screen */}
+        {/* Mode tabs */}
         {step === 'shows' && (
-          <div className="flex gap-1 bg-white/5 rounded-lg p-1 mb-4">
-            <button
-              onClick={() => { setMode('search'); setError('') }}
-              className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${mode === 'search' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+          <div className="px-[18px] pt-3.5 shrink-0">
+            <div
+              className="flex gap-1 p-1"
+              style={{ background: 'var(--surface)', borderRadius: 'var(--r-md)' }}
             >
-              Search Podcasts
-            </button>
-            <button
-              onClick={() => { setMode('url'); setError('') }}
-              className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${mode === 'url' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
-            >
-              Paste URL
-            </button>
+              <button
+                onClick={() => { setMode('search'); setError('') }}
+                className="flex-1 text-[13px] py-1.5 transition-colors font-medium"
+                style={{
+                  background: mode === 'search' ? 'var(--accent)' : 'transparent',
+                  color: mode === 'search' ? 'var(--accent-fg)' : 'var(--text-mute)',
+                  borderRadius: 'var(--r-sm)',
+                }}
+              >
+                Search Podcasts
+              </button>
+              <button
+                onClick={() => { setMode('url'); setError('') }}
+                className="flex-1 text-[13px] py-1.5 transition-colors font-medium"
+                style={{
+                  background: mode === 'url' ? 'var(--accent)' : 'transparent',
+                  color: mode === 'url' ? 'var(--accent-fg)' : 'var(--text-mute)',
+                  borderRadius: 'var(--r-sm)',
+                }}
+              >
+                Paste URL
+              </button>
+            </div>
           </div>
         )}
 
-        {/* ========== SEARCH MODE ========== */}
+        {/* Search mode */}
         {mode === 'search' ? (
-          <div className="flex flex-col flex-1 min-h-0">
-
-            {/* STEP 1: Search shows */}
+          <div className="flex flex-col flex-1 min-h-0 px-[18px] py-3.5">
             {step === 'shows' && (
               <>
-                <input
-                  type="text"
-                  value={query}
-                  onChange={onQueryChange}
-                  placeholder="Search for a podcast... e.g. Huberman, Lex Fridman"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors mb-3"
-                  autoFocus
-                />
+                <div className="shrink-0 mb-3">
+                  <div
+                    className="flex items-center gap-2 px-3 py-2"
+                    style={{
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r-md)',
+                    }}
+                  >
+                    <Icons.Search size={14} className="mute shrink-0" />
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={onQueryChange}
+                      placeholder="Search for a podcast..."
+                      className="flex-1 bg-transparent border-none outline-none text-[13.5px]"
+                      style={{ color: 'var(--text)' }}
+                      autoFocus
+                    />
+                  </div>
+                </div>
 
-                {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+                {error && (
+                  <p className="text-[12px] mb-2" style={{ color: 'var(--error)' }}>{error}</p>
+                )}
 
-                <div className="flex-1 overflow-y-auto min-h-0 space-y-2">
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
                   {searching && (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2" />
-                      <span className="text-gray-400 text-sm">Searching...</span>
+                    <div className="flex items-center justify-center py-8 gap-2">
+                      <span
+                        className="w-4 h-4 rounded-full border-2 animate-spin"
+                        style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                      />
+                      <span className="text-[13px] mute">Searching...</span>
                     </div>
                   )}
 
                   {!searching && shows.length === 0 && query.trim().length >= 2 && (
-                    <p className="text-gray-500 text-sm text-center py-8">No podcasts found</p>
+                    <p className="mute text-[13px] text-center py-8">No podcasts found</p>
                   )}
 
                   {!searching && shows.length === 0 && query.trim().length < 2 && (
-                    <p className="text-gray-500 text-sm text-center py-8">
+                    <p className="mute text-[13px] text-center py-8">
                       Type a podcast name, host, or topic to search
                     </p>
                   )}
@@ -227,56 +267,62 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                     <button
                       key={show.id}
                       onClick={() => handleSelectShow(show)}
-                      className="w-full flex gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left group"
+                      className="w-full flex gap-3 p-2.5 text-left group transition-colors"
+                      style={{ borderRadius: 'var(--r-md)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                     >
                       {show.artwork && (
                         <img
                           src={show.artwork}
                           alt=""
-                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 group-hover:ring-2 ring-purple-500 transition-all"
+                          className="w-[52px] h-[52px] object-cover shrink-0 transition-all"
+                          style={{ borderRadius: 'var(--r-sm)' }}
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium line-clamp-1">
+                        <p className="text-[14px] font-medium line-clamp-1 m-0" style={{ color: 'var(--text)' }}>
                           {decodeHtml(show.title)}
                         </p>
-                        <p className="text-gray-400 text-xs mt-0.5">{show.author}</p>
-                        <p className="text-gray-500 text-xs mt-0.5 line-clamp-1">
+                        <p className="text-[12px] dim mt-0.5 m-0">{show.author}</p>
+                        <p className="text-[11px] mute mt-0.5 line-clamp-1 m-0">
                           {show.episodeCount ? `${show.episodeCount} episodes` : ''}
                           {show.episodeCount && show.description ? ' · ' : ''}
                           {truncate(decodeHtml(show.description), 80)}
                         </p>
                       </div>
-                      <svg className="w-5 h-5 text-gray-600 group-hover:text-purple-400 flex-shrink-0 mt-2 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      <Icons.Arrow size={14} className="mute shrink-0 mt-2" />
                     </button>
                   ))}
                 </div>
               </>
             )}
 
-            {/* STEP 2: Browse episodes */}
             {step === 'episodes' && (
               <>
                 {selectedShow && (
-                  <p className="text-gray-400 text-xs mb-3">
+                  <p className="text-[12px] dim mb-3 m-0 shrink-0">
                     by {selectedShow.author} · Select an episode to add
                   </p>
                 )}
 
-                {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+                {error && (
+                  <p className="text-[12px] mb-2" style={{ color: 'var(--error)' }}>{error}</p>
+                )}
 
-                <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-0.5">
                   {loadingEpisodes && (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2" />
-                      <span className="text-gray-400 text-sm">Loading episodes...</span>
+                    <div className="flex items-center justify-center py-8 gap-2">
+                      <span
+                        className="w-4 h-4 rounded-full border-2 animate-spin"
+                        style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                      />
+                      <span className="text-[13px] mute">Loading episodes...</span>
                     </div>
                   )}
 
                   {!loadingEpisodes && episodes.length === 0 && (
-                    <p className="text-gray-500 text-sm text-center py-8">No episodes found</p>
+                    <p className="mute text-[13px] text-center py-8">No episodes found</p>
                   )}
 
                   {!loadingEpisodes && episodes.map((ep) => (
@@ -284,26 +330,32 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                       key={ep.id}
                       onClick={() => handleSelectEpisode(ep)}
                       disabled={loading}
-                      className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed group"
+                      className="w-full flex items-start gap-3 p-2.5 text-left disabled:opacity-50 disabled:cursor-not-allowed group transition-colors"
+                      style={{ borderRadius: 'var(--r-md)' }}
+                      onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'var(--surface)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600/20 flex items-center justify-center mt-0.5 group-hover:bg-purple-600/40 transition-colors">
-                        <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
+                      <div
+                        className="shrink-0 w-8 h-8 rounded-full grid place-items-center mt-0.5 transition-colors"
+                        style={{ background: 'var(--accent-soft)' }}
+                      >
+                        <Icons.Plus size={14} style={{ color: 'var(--accent)' }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium line-clamp-2 leading-snug">
+                        <p className="text-[13.5px] font-medium line-clamp-2 leading-snug m-0" style={{ color: 'var(--text)' }}>
                           {decodeHtml(ep.title)}
                         </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {ep.duration > 0 && (
-                            <span className="text-purple-400 text-xs">{formatDuration(ep.duration)}</span>
+                            <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>
+                              {formatDuration(ep.duration)}
+                            </span>
                           )}
                           {ep.datePublished > 0 && (
-                            <span className="text-gray-500 text-xs">{formatDate(ep.datePublished)}</span>
+                            <span className="text-[11px] mute">{formatDate(ep.datePublished)}</span>
                           )}
                           {ep.fileSize > 0 && (
-                            <span className="text-gray-600 text-xs">{formatFileSize(ep.fileSize)}</span>
+                            <span className="text-[11px] mute">{formatFileSize(ep.fileSize)}</span>
                           )}
                         </div>
                       </div>
@@ -312,45 +364,65 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                 </div>
 
                 {loading && (
-                  <div className="flex items-center justify-center py-3 border-t border-white/5 mt-2">
-                    <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2" />
-                    <span className="text-gray-400 text-sm">Adding episode...</span>
+                  <div
+                    className="flex items-center justify-center py-3 mt-2 shrink-0"
+                    style={{ borderTop: '1px solid var(--border)' }}
+                  >
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border-2 animate-spin mr-2"
+                      style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                    />
+                    <span className="text-[13px] mute">Adding episode...</span>
                   </div>
                 )}
               </>
             )}
           </div>
         ) : (
-
-          /* ========== URL MODE ========== */
-          <form onSubmit={handleUrlSubmit} className="space-y-4">
+          /* URL mode */
+          <form onSubmit={handleUrlSubmit} className="p-[18px] space-y-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Podcast URL</label>
+              <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">
+                Podcast URL
+              </label>
               <input
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition-colors"
+                className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors"
+                style={{
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r-md)',
+                  color: 'var(--text)',
+                }}
                 autoFocus
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-[11px] mute mt-1.5">
                 Paste a YouTube URL directly. Podcast search above is recommended.
               </p>
-              {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
+              {error && (
+                <p className="text-[12px] mt-1.5" style={{ color: 'var(--error)' }}>{error}</p>
+              )}
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-sm dim transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={!url.trim() || loading}
-                className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{
+                  background: 'var(--accent)',
+                  color: 'var(--accent-fg)',
+                  borderRadius: 'var(--r-md)',
+                }}
               >
                 {loading ? 'Adding...' : 'Add Podcast'}
               </button>

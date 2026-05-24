@@ -7,7 +7,9 @@ import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
 import ProcessingLog from '../components/ProcessingLog'
-import { formatDate, statusColors } from '../lib/utils'
+import { StatusPip, Tag } from '../components/ui'
+import * as Icons from '../components/Icons'
+import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
 
 export default function PodcastDetail() {
   const { kbId, podcastId } = useParams()
@@ -22,8 +24,6 @@ export default function PodcastDetail() {
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
 
-  const isStandalone = !kbId
-
   useEffect(() => {
     async function load() {
       try {
@@ -33,7 +33,6 @@ export default function PodcastDetail() {
           getPodcastKBs(podcastId),
           getProcessingLogs(podcastId),
         ])
-        // Derive start/finish timestamps from processing logs
         if (logs && logs.length > 0) {
           setProcessingStartedAt(logs[0].created_at)
           const lastLog = logs[logs.length - 1]
@@ -58,7 +57,6 @@ export default function PodcastDetail() {
     load()
   }, [podcastId, kbId, navigate])
 
-  // Poll for status changes when processing
   useEffect(() => {
     if (!podcast) return
     const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
@@ -70,7 +68,6 @@ export default function PodcastDetail() {
         if (result) {
           setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message, progress: result.progress }))
           if (result.status === 'ready' || result.status === 'error') {
-            // Refresh transcript/insights and get final log timestamp
             const [trans, logs] = await Promise.all([
               result.status === 'ready' ? getTranscript(podcastId) : Promise.resolve(null),
               getProcessingLogs(podcastId),
@@ -98,7 +95,6 @@ export default function PodcastDetail() {
     setProcessingStartedAt(new Date().toISOString())
     setProcessingFinishedAt(null)
     setPodcast((prev) => ({ ...prev, status: 'downloading', error_message: null, progress: 0 }))
-
     try {
       await processPodcast(podcastId)
     } catch (err) {
@@ -118,206 +114,252 @@ export default function PodcastDetail() {
   }
 
   if (loading) {
-    return <div className="animate-pulse text-gray-400 py-20 text-center">Loading...</div>
+    return <div className="flex items-center justify-center h-full mute text-sm">Loading...</div>
   }
-
   if (!podcast) return null
 
-  const statusClass = statusColors[podcast.status] || statusColors.pending
   const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
   const canProcess = podcast.status === 'pending' || podcast.status === 'error'
+
   const tabs = [
-    { id: 'insights', label: 'Insights' },
-    { id: 'transcript', label: 'Transcript' },
+    { id: 'insights', label: 'Insights', icon: <Icons.Sparkle size={12} /> },
+    { id: 'transcript', label: 'Transcript', icon: <Icons.Quote size={12} /> },
+    { id: 'processing', label: 'Processing', icon: <Icons.Clock size={12} /> },
   ]
 
-  function formatTimestamp(seconds) {
-    if (!seconds) return '0:00'
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    const s = Math.floor(seconds % 60)
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    return `${m}:${String(s).padStart(2, '0')}`
-  }
-
-  function handleKBAdded(kb) {
-    setLinkedKBs((prev) => [...prev, kb])
-  }
-
   return (
-    <div>
-      {/* Breadcrumb */}
-      <Link
-        to={kbId ? `/kb/${kbId}` : '/'}
-        className="text-sm text-gray-400 hover:text-white transition-colors mb-4 inline-block"
-      >
-        {kbId ? '← Back to Knowledge Base' : '← All Podcasts'}
-      </Link>
+    <div className="h-full overflow-y-auto">
+      <div className="px-6 sm:px-8 py-6 pb-20 max-w-[820px] mx-auto">
+        {/* Breadcrumb */}
+        <Link
+          to={kbId ? `/kb/${kbId}` : '/'}
+          className="inline-flex items-center gap-1.5 text-[12px] mono mute mb-4 transition-colors hover:text-[var(--text)]"
+        >
+          <Icons.Back size={12} />
+          {kbId ? 'Back to Knowledge Base' : 'All Podcasts'}
+        </Link>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        {podcast.thumbnail_url ? (
-          <img
-            src={podcast.thumbnail_url}
-            alt=""
-            className="w-full sm:w-48 h-40 sm:h-28 object-cover rounded-xl flex-shrink-0"
-          />
-        ) : (
-          <div className="w-full sm:w-48 h-40 sm:h-28 bg-white/5 rounded-xl flex-shrink-0 flex items-center justify-center text-4xl">
-            🎙️
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">
-            {podcast.title || 'Untitled Podcast'}
-          </h1>
-          {podcast.channel && (
-            <p className="text-gray-400 mt-1 text-sm sm:text-base">{podcast.channel}</p>
-          )}
-          <div className="flex items-center gap-3 mt-2">
-            <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>
-              {podcast.status}
-            </span>
-            <span className="text-xs text-gray-500">{formatDate(podcast.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 mt-3 flex-wrap">
-            {canProcess && (
-              <button
-                onClick={handleProcess}
-                disabled={processing}
-                className={`text-sm px-4 py-1.5 font-medium rounded-lg transition-colors ${
-                  podcast.status === 'error'
-                    ? 'bg-red-600 hover:bg-red-500 text-white'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white'
-                } disabled:opacity-50`}
-              >
-                {processing ? 'Starting...' : podcast.status === 'error' ? 'Retry Processing' : 'Process Podcast'}
-              </button>
-            )}
-            {isActive && (
-              <button
-                onClick={handleCancel}
-                className="text-sm px-4 py-1.5 font-medium rounded-lg bg-white/5 border border-white/10 hover:border-red-500/50 text-gray-300 hover:text-red-400 transition-colors"
-              >
-                Cancel
-              </button>
-            )}
-            {podcast.url && (
-              <a
-                href={podcast.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-purple-400 hover:text-purple-300"
-              >
-                {podcast.source === 'podcast_index' ? 'Open Episode →' : 'Open on YouTube →'}
-              </a>
-            )}
-            <button
-              onClick={() => setShowAddToKB(true)}
-              className="text-sm px-3 py-1.5 bg-white/5 border border-white/10 hover:border-purple-500/50 text-gray-300 hover:text-white rounded-lg transition-colors"
+        {/* Header */}
+        <div className="flex gap-[18px] mb-[22px]">
+          {podcast.thumbnail_url ? (
+            <img
+              src={podcast.thumbnail_url}
+              alt=""
+              className="w-[88px] h-[88px] object-cover shrink-0"
+              style={{ borderRadius: 'var(--r-lg)' }}
+            />
+          ) : (
+            <div
+              className="w-[88px] h-[88px] shrink-0 grid place-items-center mute"
+              style={{ background: 'var(--surface)', borderRadius: 'var(--r-lg)' }}
             >
-              + Add to KB
-            </button>
-          </div>
-          {/* Show linked KBs */}
-          {linkedKBs.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className="text-xs text-gray-500">In:</span>
-              {linkedKBs.map((kb) => (
-                <Link
-                  key={kb.id}
-                  to={`/kb/${kb.id}`}
-                  className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full hover:bg-purple-500/30 transition-colors"
-                >
-                  {kb.name}
-                </Link>
-              ))}
+              <Icons.Headphones size={32} />
             </div>
           )}
-          {podcast.error_message && podcast.status === 'error' && (
-            <p className="text-xs text-red-400 mt-2">{podcast.error_message}</p>
-          )}
-        </div>
-      </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-1">
+              {podcast.channel || 'Unknown'} · {formatDate(podcast.created_at)}
+            </div>
+            <h1 className="serif text-[28px] font-medium tracking-tight leading-tight m-0">
+              {podcast.title || 'Untitled Podcast'}
+            </h1>
+            <div className="flex gap-3 mt-2.5 text-[11px] mono mute items-center">
+              <StatusPip status={podcast.status} />
+              <span>·</span>
+              <span>{formatDuration(podcast.duration_seconds)}</span>
+            </div>
 
-      {/* Processing progress */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
-        <ProcessingProgress status={podcast.status} startedAt={processingStartedAt} finishedAt={processingFinishedAt} progress={podcast.progress} />
-      </div>
-
-      {/* Processing log */}
-      <ProcessingLog podcastId={podcastId} status={podcast.status} />
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-white/10 mb-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'text-purple-400 border-purple-400'
-                : 'text-gray-400 border-transparent hover:text-white'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab content */}
-      {activeTab === 'insights' && (
-        <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} />
-      )}
-
-      {activeTab === 'transcript' && (
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4 sm:p-5">
-          {transcript ? (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-purple-400 uppercase tracking-wide">
-                  Full Transcript
-                </h3>
-                <span className="text-xs text-gray-500">
-                  {transcript.word_count?.toLocaleString()} words
-                </span>
-              </div>
-              {transcript.segments && transcript.segments.length > 0 ? (
-                <div className="space-y-3">
-                  {transcript.segments.map((seg, i) => (
-                    <div key={i} className="flex gap-3">
-                      <span className="text-xs text-purple-400 font-mono flex-shrink-0 pt-0.5 w-14 text-right">
-                        {formatTimestamp(seg.start)}
-                      </span>
-                      <p className="text-sm text-gray-300 leading-relaxed">
-                        {seg.sentences?.map((s) => s.text).join(' ') || seg.text || ''}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
-                  {transcript.full_text}
-                </p>
+            {/* Actions */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              {canProcess && (
+                <button
+                  onClick={handleProcess}
+                  disabled={processing}
+                  className="text-[13px] px-3.5 py-1.5 font-semibold transition-colors disabled:opacity-50"
+                  style={{
+                    background: podcast.status === 'error' ? 'var(--error)' : 'var(--accent)',
+                    color: 'var(--accent-fg)',
+                    borderRadius: 'var(--r-md)',
+                  }}
+                >
+                  {processing ? 'Starting...' : podcast.status === 'error' ? 'Retry' : 'Process'}
+                </button>
+              )}
+              {isActive && (
+                <button
+                  onClick={handleCancel}
+                  className="text-[13px] px-3.5 py-1.5 transition-colors"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-dim)',
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={() => setShowAddToKB(true)}
+                className="text-[13px] px-3 py-1.5 transition-colors"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--r-md)',
+                  color: 'var(--text-dim)',
+                }}
+              >
+                + Add to KB
+              </button>
+              {podcast.url && (
+                <a
+                  href={podcast.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[12px] mono transition-colors"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  {podcast.source === 'podcast_index' ? 'Open Episode →' : 'Open Source →'}
+                </a>
               )}
             </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">
-              No transcript available. Process this podcast first.
-            </p>
-          )}
+
+            {/* Linked KBs */}
+            {linkedKBs.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[11px] mute">In:</span>
+                {linkedKBs.map((kb) => (
+                  <Link key={kb.id} to={`/kb/${kb.id}`}>
+                    <Tag variant="accent">{kb.name}</Tag>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {podcast.error_message && podcast.status === 'error' && (
+              <p className="text-[12px] mt-2" style={{ color: 'var(--error)' }}>
+                {podcast.error_message}
+              </p>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Processing progress */}
+        <div
+          className="p-3 sm:p-4 mb-4 sm:mb-6"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-lg)',
+          }}
+        >
+          <ProcessingProgress
+            status={podcast.status}
+            startedAt={processingStartedAt}
+            finishedAt={processingFinishedAt}
+            progress={podcast.progress}
+          />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-[22px]" style={{ borderBottom: '1px solid var(--border)' }}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors"
+              style={{
+                color: activeTab === t.id ? 'var(--text)' : 'var(--text-mute)',
+                borderBottom: activeTab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+                fontWeight: activeTab === t.id ? 500 : 400,
+              }}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'insights' && (
+          <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} />
+        )}
+
+        {activeTab === 'transcript' && (
+          <TranscriptView transcript={transcript} />
+        )}
+
+        {activeTab === 'processing' && (
+          <ProcessingLog podcastId={podcastId} status={podcast.status} />
+        )}
+      </div>
 
       {showAddToKB && (
         <AddToKBModal
           podcastId={podcastId}
           existingKBIds={linkedKBs.map((kb) => kb.id)}
           onClose={() => setShowAddToKB(false)}
-          onAdded={handleKBAdded}
+          onAdded={(kb) => setLinkedKBs((prev) => [...prev, kb])}
         />
       )}
+    </div>
+  )
+}
 
+function TranscriptView({ transcript }) {
+  if (!transcript) {
+    return (
+      <div className="text-center py-12 mute">
+        No transcript available. Process this podcast first.
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="p-4 sm:p-5"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r-lg)',
+      }}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-[11px] mono uppercase tracking-[0.08em]" style={{ color: 'var(--accent)' }}>
+          Full Transcript
+        </h3>
+        {transcript.word_count && (
+          <span className="text-[11px] mono mute">
+            {transcript.word_count.toLocaleString()} words
+          </span>
+        )}
+      </div>
+
+      {transcript.segments && transcript.segments.length > 0 ? (
+        <div className="flex flex-col gap-4">
+          {transcript.segments.map((seg, i) => (
+            <div
+              key={i}
+              className="grid gap-4"
+              style={{ gridTemplateColumns: '70px 1fr' }}
+            >
+              <span
+                className="mono text-[11px] text-right pt-[3px]"
+                style={{ color: 'var(--accent)' }}
+              >
+                {formatTimestamp(seg.start)}
+              </span>
+              <p className="serif text-[16px] leading-relaxed tracking-tight m-0 dim">
+                {seg.sentences?.map((s) => s.text).join(' ') || seg.text || ''}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm dim leading-relaxed whitespace-pre-wrap">
+          {transcript.full_text}
+        </p>
+      )}
     </div>
   )
 }

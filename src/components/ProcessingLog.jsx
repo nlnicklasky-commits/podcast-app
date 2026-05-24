@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { getProcessingLogs } from '../services/processing'
 
 const STEP_COLORS = {
-  downloading: 'text-blue-400',
-  transcribing: 'text-purple-400',
-  processing: 'text-indigo-400',
-  ready: 'text-green-400',
-  error: 'text-red-400',
-  cancelled: 'text-yellow-400',
+  downloading: 'oklch(0.72 0.12 230)',
+  transcribing: 'var(--accent)',
+  processing: 'oklch(0.72 0.12 280)',
+  ready: 'oklch(0.72 0.14 150)',
+  error: 'var(--error)',
+  cancelled: 'oklch(0.78 0.12 85)',
 }
 
 export default function ProcessingLog({ podcastId, status }) {
@@ -19,10 +19,8 @@ export default function ProcessingLog({ podcastId, status }) {
   useEffect(() => {
     if (!podcastId) return
 
-    // Initial fetch
     getProcessingLogs(podcastId).then(setLogs)
 
-    // Poll while active
     if (isActive || status === 'ready' || status === 'error') {
       const poll = setInterval(async () => {
         const data = await getProcessingLogs(podcastId)
@@ -35,7 +33,6 @@ export default function ProcessingLog({ podcastId, status }) {
     }
   }, [podcastId, status, isActive])
 
-  // Auto-scroll to bottom on new logs
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs.length])
@@ -52,36 +49,55 @@ export default function ProcessingLog({ podcastId, status }) {
   }
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden mb-6">
+    <div
+      className="overflow-hidden"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--r-lg)',
+      }}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-3 text-sm text-gray-400 hover:text-white transition-colors"
+        className="w-full flex items-center justify-between p-3.5 text-[13px] transition-colors"
+        style={{ color: 'var(--text-dim)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)' }}
       >
         <span className="flex items-center gap-2">
-          <span className="font-mono text-xs">{'>'}_</span>
+          <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>{'>'}_</span>
           <span>Processing Log ({logs.length} entries)</span>
           {isActive && (
-            <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: 'oklch(0.72 0.14 150)', animation: 'pulse-dot 1.2s ease-in-out infinite' }}
+            />
           )}
         </span>
-        <span className="text-xs">{expanded ? '▲' : '▼'}</span>
+        <span className="text-[11px] mute">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
-        <div className="border-t border-white/5 bg-black/20 p-3 max-h-48 overflow-y-auto font-mono text-xs">
+        <div
+          className="p-3.5 max-h-48 overflow-y-auto mono text-[11px]"
+          style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}
+        >
           {logs.length === 0 ? (
-            <p className="text-gray-500">Waiting for logs...</p>
+            <p className="mute m-0">Waiting for logs...</p>
           ) : (
             <div className="space-y-1">
               {logs.map((log) => (
                 <div key={log.id} className="flex gap-2">
-                  <span className="text-gray-600 flex-shrink-0">
+                  <span className="shrink-0" style={{ color: 'var(--text-mute)' }}>
                     {formatTime(log.created_at)}
                   </span>
-                  <span className={`flex-shrink-0 w-24 ${STEP_COLORS[log.step] || 'text-gray-400'}`}>
+                  <span
+                    className="shrink-0 w-24"
+                    style={{ color: STEP_COLORS[log.step] || 'var(--text-mute)' }}
+                  >
                     [{log.step}]
                   </span>
-                  <span className="text-gray-300">{log.message}</span>
+                  <span style={{ color: 'var(--text-dim)' }}>{log.message}</span>
                 </div>
               ))}
               <div ref={bottomRef} />

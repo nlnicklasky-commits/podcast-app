@@ -24,6 +24,8 @@ Deno.serve(async (req: Request) => {
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) throw new Error("OPENAI_API_KEY not set");
+    const groqKey = Deno.env.get("GROQ_API_KEY");
+    if (!groqKey) throw new Error("GROQ_API_KEY not set");
 
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
@@ -190,29 +192,29 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 3. Transcribe with OpenAI Whisper
+    // 3. Transcribe with Groq Whisper-Large-v3
     await setStatus("transcribing");
     await setProgress(30);
-    await log("transcribing", "Sending audio to OpenAI Whisper...");
+    await log("transcribing", "Sending audio to Groq Whisper-Large-v3...");
 
     const formData = new FormData();
     formData.append("file", audioBlob, "audio.mp3");
-    formData.append("model", "whisper-1");
+    formData.append("model", "whisper-large-v3");
     formData.append("response_format", "verbose_json");
     formData.append("timestamp_granularities[]", "segment");
 
     const whisperResponse = await fetch(
-      "https://api.openai.com/v1/audio/transcriptions",
+      "https://api.groq.com/openai/v1/audio/transcriptions",
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${openaiKey}` },
+        headers: { Authorization: `Bearer ${groqKey}` },
         body: formData,
       },
     );
 
     if (!whisperResponse.ok) {
       const errText = await whisperResponse.text();
-      throw new Error(`Whisper error: ${whisperResponse.status} ${errText}`);
+      throw new Error(`Groq Whisper error: ${whisperResponse.status} ${errText}`);
     }
 
     const whisperResult = await whisperResponse.json();
@@ -301,24 +303,24 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 6. Generate insights via OpenAI GPT-4o
+    // 6. Generate insights via Groq Llama 3.3 70B
     await setProgress(90);
-    await log("processing", "Generating insights with GPT-4o...");
+    await log("processing", "Generating insights with Llama 3.3 70B on Groq...");
 
     const truncated = fullText.length > 80000
       ? fullText.slice(0, 80000) + "\n[...transcript truncated...]"
       : fullText;
 
     const insightResponse = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+      "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${openaiKey}`,
+          Authorization: `Bearer ${groqKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o",
+          model: "llama-3.3-70b-versatile",
           max_tokens: 4096,
           response_format: { type: "json_object" },
           messages: [
@@ -337,7 +339,7 @@ Deno.serve(async (req: Request) => {
 
     if (!insightResponse.ok) {
       const errText = await insightResponse.text();
-      throw new Error(`OpenAI insights error: ${insightResponse.status} ${errText}`);
+      throw new Error(`Groq insights error: ${insightResponse.status} ${errText}`);
     }
 
     const insightResult = await insightResponse.json();
