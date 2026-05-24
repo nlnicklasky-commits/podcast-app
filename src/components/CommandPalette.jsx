@@ -1,20 +1,52 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { semanticSearch } from '../services/search'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
+import { formatTimestamp } from '../lib/utils'
 
 export default function CommandPalette({ open, onClose, knowledgeBases = [], podcasts = [] }) {
   const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
   const inputRef = useRef(null)
   const navigate = useNavigate()
+  const isSearchMode = query.startsWith('?') && query.length > 1
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50)
   }, [open])
 
   useEffect(() => {
-    if (!open) setQuery('')
+    if (!open) {
+      setQuery('')
+      setSearchResults([])
+      setSearching(false)
+    }
   }, [open])
+
+  const doSemanticSearch = useCallback(async (q) => {
+    setSearching(true)
+    try {
+      const data = await semanticSearch({ query: q, limit: 6, threshold: 0.3 })
+      setSearchResults(data.results)
+    } catch {
+      setSearchResults([])
+    } finally {
+      setSearching(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isSearchMode) {
+      setSearchResults([])
+      return
+    }
+    const searchQuery = query.slice(1).trim()
+    if (searchQuery.length < 3) return
+    const timer = setTimeout(() => doSemanticSearch(searchQuery), 400)
+    return () => clearTimeout(timer)
+  }, [query, isSearchMode, doSemanticSearch])
 
   const items = useMemo(() => {
     const all = [
@@ -79,11 +111,21 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search KBs, podcasts, or ask anything..."
+            placeholder="Search KBs, podcasts… or type ? to search transcripts"
             className="flex-1 bg-transparent border-none outline-none text-[15px] text-[var(--text)]"
             onKeyDown={(e) => {
               if (e.key === 'Escape') onClose(null)
-              if (e.key === 'Enter' && items[0]) handleSelect(items[0])
+              if (e.key === 'Enter') {
+                if (isSearchMode) {
+                  const searchQuery = query.slice(1).trim()
+                  if (searchQuery.length >= 3) {
+                    navigate(`/search?q=${encodeURIComponent(searchQuery)}`)
+                    onClose(null)
+                  }
+                } else if (items[0]) {
+                  handleSelect(items[0])
+                }
+              }
             }}
           />
           <kbd
@@ -94,26 +136,90 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
         </div>
 
         <div className="max-h-[380px] overflow-y-auto">
-          {items.map((it, i) => (
-            <button
-              key={`${it.kind}-${it.label}-${i}`}
-              onClick={() => handleSelect(it)}
-              className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
-                i === 0
-                  ? 'bg-[var(--surface)] border-l-[var(--accent)]'
-                  : 'bg-transparent border-l-transparent'
-              }`}
-            >
-              <span className="mute">{it.glyph}</span>
-              <span className="flex-1 min-w-0 text-[13.5px] truncate text-[var(--text)]">
-                {it.label}
-              </span>
-              <span className="text-[11px] mono mute">{it.hint}</span>
-              <span className="text-[10px] mono mute uppercase tracking-[0.08em]">{it.kind}</span>
-            </button>
-          ))}
-          {items.length === 0 && (
-            <div className="p-10 text-center text-[13px] mute">No matches.</div>
+          {isSearchMode ? (
+            <>
+              {searching && (
+                <div className="flex items-center gap-2.5 px-[18px] py-4 text-[13px] mute">
+                  <div className="w-3.5 h-3.5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+                  Searching transcripts…
+                </div>
+              )}
+              {!searching && searchResults.length > 0 && searchResults.map((r, i) => {
+                const kbId = r.knowledge_base_ids?.[0]
+                const to = kbId
+                  ? `/kb/${kbId}/podcast/${r.podcast_id}?t=${Math.floor(r.start_time || 0)}`
+                  : `/podcast/${r.podcast_id}?t=${Math.floor(r.start_time || 0)}`
+                return (
+                  <button
+                    key={r.chunk_id || i}
+                    onClick={() => { navigate(to); onClose(null) }}
+                    className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
+                      i === 0
+                        ? 'bg-[var(--surface)] border-l-[var(--accent)]'
+                        : 'bg-transparent border-l-transparent'
+                    }`}
+                  >
+                    <span className="mute shrink-0">
+                      {r.thumbnail_url
+                        ? <img src={r.thumbnail_url} alt="" className="w-5 h-5 rounded object-cover" />
+                        : <Icons.Headphones size={14} />
+                      }
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] truncate">{r.podcast_title}</div>
+                      <div className="text-[11px] mute truncate">{r.text?.slice(0, 80)}</div>
+                    </div>
+                    <span className="text-[11px] mono text-[var(--accent)] shrink-0">
+                      {formatTimestamp(r.start_time)}
+                    </span>
+                    <span className="text-[10px] mono font-semibold px-1 py-0.5 rounded bg-[var(--accent-faint)] text-[var(--accent)] shrink-0">
+                      {Math.round(r.similarity * 100)}%
+                    </span>
+                  </button>
+                )
+              })}
+              {!searching && searchResults.length === 0 && query.slice(1).trim().length >= 3 && (
+                <div className="p-10 text-center text-[13px] mute">No transcript matches.</div>
+              )}
+              {!searching && query.slice(1).trim().length < 3 && (
+                <div className="p-10 text-center text-[13px] mute">Type at least 3 characters after ? to search transcripts.</div>
+              )}
+              {searchResults.length > 0 && (
+                <button
+                  onClick={() => {
+                    navigate(`/search?q=${encodeURIComponent(query.slice(1).trim())}`)
+                    onClose(null)
+                  }}
+                  className="w-full px-[18px] py-2.5 text-[12px] mono text-[var(--accent)] text-center hover:bg-[var(--surface)] transition-colors"
+                >
+                  View all results →
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {items.map((it, i) => (
+                <button
+                  key={`${it.kind}-${it.label}-${i}`}
+                  onClick={() => handleSelect(it)}
+                  className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
+                    i === 0
+                      ? 'bg-[var(--surface)] border-l-[var(--accent)]'
+                      : 'bg-transparent border-l-transparent'
+                  }`}
+                >
+                  <span className="mute">{it.glyph}</span>
+                  <span className="flex-1 min-w-0 text-[13.5px] truncate text-[var(--text)]">
+                    {it.label}
+                  </span>
+                  <span className="text-[11px] mono mute">{it.hint}</span>
+                  <span className="text-[10px] mono mute uppercase tracking-[0.08em]">{it.kind}</span>
+                </button>
+              ))}
+              {items.length === 0 && (
+                <div className="p-10 text-center text-[13px] mute">No matches.</div>
+              )}
+            </>
           )}
         </div>
 
@@ -122,6 +228,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
         >
           <span>↑↓ navigate</span>
           <span>↵ select</span>
+          <span>? search transcripts</span>
         </div>
       </div>
     </div>

@@ -30,6 +30,12 @@ export default function Layout({ children }) {
         setPaletteOpen((v) => !v)
       } else if (e.key === 'Escape' && paletteOpen) {
         setPaletteOpen(false)
+      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+        const tag = document.activeElement?.tagName
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !document.activeElement?.isContentEditable) {
+          e.preventDefault()
+          navigate('/search')
+        }
       }
     }
     window.addEventListener('keydown', onKey)
@@ -116,6 +122,12 @@ export default function Layout({ children }) {
           label="Library"
           active={location.pathname === '/'}
           onClick={() => navigate('/')}
+        />
+        <NavItem
+          icon={<Icons.Search size={15} />}
+          label="Search"
+          active={location.pathname === '/search'}
+          onClick={() => navigate('/search')}
         />
 
         {/* KB section */}

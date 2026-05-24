@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
@@ -14,6 +14,8 @@ import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
 export default function PodcastDetail() {
   const { kbId, podcastId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const timestampParam = searchParams.get('t')
   const [podcast, setPodcast] = useState(null)
   const [transcript, setTranscript] = useState(null)
   const [linkedKBs, setLinkedKBs] = useState([])
@@ -256,7 +258,7 @@ export default function PodcastDetail() {
         )}
 
         {activeTab === 'transcript' && (
-          <TranscriptView transcript={transcript} />
+          <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} />
         )}
 
         {activeTab === 'processing' && (
@@ -276,13 +278,31 @@ export default function PodcastDetail() {
   )
 }
 
-function TranscriptView({ transcript }) {
+function TranscriptView({ transcript, highlightTime }) {
+  const highlightRef = useRef(null)
+  const hasScrolled = useRef(false)
+
+  useEffect(() => {
+    if (highlightTime != null && highlightRef.current && !hasScrolled.current) {
+      hasScrolled.current = true
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 100)
+    }
+  }, [highlightTime])
+
   if (!transcript) {
     return (
       <div className="text-center py-12 mute">
         No transcript available. Process this podcast first.
       </div>
     )
+  }
+
+  function isHighlighted(seg) {
+    if (highlightTime == null) return false
+    const segEnd = seg.end ?? (seg.start + 60)
+    return highlightTime >= seg.start && highlightTime < segEnd
   }
 
   return (
@@ -302,21 +322,29 @@ function TranscriptView({ transcript }) {
 
       {transcript.segments && transcript.segments.length > 0 ? (
         <div className="flex flex-col gap-4">
-          {transcript.segments.map((seg, i) => (
-            <div
-              key={i}
-              className="grid gap-4 grid-cols-[70px_1fr]"
-            >
-              <span
-                className="mono text-[11px] text-right pt-[3px] text-[var(--accent)]"
+          {transcript.segments.map((seg, i) => {
+            const highlighted = isHighlighted(seg)
+            return (
+              <div
+                key={i}
+                ref={highlighted ? highlightRef : undefined}
+                className={`grid gap-4 grid-cols-[70px_1fr] transition-colors rounded-sm ${
+                  highlighted
+                    ? 'bg-[var(--accent-faint)] border-l-2 border-[var(--accent)] pl-1 -ml-1'
+                    : ''
+                }`}
               >
-                {formatTimestamp(seg.start)}
-              </span>
-              <p className="serif text-[16px] leading-relaxed tracking-tight m-0 dim">
-                {seg.sentences?.map((s) => s.text).join(' ') || seg.text || ''}
-              </p>
-            </div>
-          ))}
+                <span
+                  className="mono text-[11px] text-right pt-[3px] text-[var(--accent)]"
+                >
+                  {formatTimestamp(seg.start)}
+                </span>
+                <p className="serif text-[16px] leading-relaxed tracking-tight m-0 dim">
+                  {seg.sentences?.map((s) => s.text).join(' ') || seg.text || ''}
+                </p>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <p className="text-sm dim leading-relaxed whitespace-pre-wrap">
