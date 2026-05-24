@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(yt-dlp --version)",
-      "Bash(node scripts/download-audio.js b26cd36b-b24b-4b40-880d-0d5338050a29)"
+      "Bash(node scripts/download-audio.js b26cd36b-b24b-4b40-880d-0d5338050a29)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__get_logs"
     ]
   }
 }
