@@ -13,8 +13,11 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let podcastId: string | undefined;
+
   try {
     const { podcast_id } = await req.json();
+    podcastId = podcast_id;
     if (!podcast_id) throw new Error("podcast_id is required");
 
     const supabase = createClient(
@@ -30,7 +33,7 @@ Deno.serve(async (req: Request) => {
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
       .from("podcasts")
-      .select("id, url, title, youtube_video_id, enclosure_url, source")
+      .select("id, url, title, youtube_video_id, enclosure_url, source, transcript_url")
       .eq("id", podcast_id)
       .limit(1);
 
@@ -82,12 +85,75 @@ Deno.serve(async (req: Request) => {
 
     // ============================================================
     // Overall progress layout:
-    //   Cobalt download        =  0% – 15%
-    //   Upload to Storage      = 15% – 30%
+    //   Download/Transcript    =  0% – 15%
+    //   Upload to Storage      = 15% – 30%  (audio path only)
     //   Transcribe             = 30% – 55%
     //   Chunk+Embed            = 55% – 90%
     //   Insights               = 90% – 100%
     // ============================================================
+
+    let fullText: string;
+    let paragraphs: Paragraph[];
+    let wordCount: number;
+    let storagePath: string | null = null;
+
+    if (pod.transcript_url) {
+      // --- TRANSCRIPT PATH: fetch pre-existing transcript from RSS feed ---
+      await setStatus("downloading");
+      await setProgress(5);
+      await log("downloading", `Fetching transcript from RSS feed...`);
+
+      const txResponse = await fetch(pod.transcript_url);
+      if (!txResponse.ok) {
+        throw new Error(`Failed to fetch transcript: ${txResponse.status}`);
+      }
+
+      const txText = await txResponse.text();
+      const txSizeKB = (txText.length / 1024).toFixed(0);
+      await setProgress(15);
+      await log("downloading", `Fetched transcript (${txSizeKB}KB).`);
+
+      if (await checkCancelled()) {
+        return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const isSRT = pod.transcript_url.includes(".srt") || pod.transcript_url.includes("subrip");
+
+      if (isSRT) {
+        const srtSegments = parseSRT(txText);
+        fullText = srtSegments.map((s) => s.text).join(" ");
+        paragraphs = srtSegments.map((seg) => ({
+          start: seg.start,
+          end: seg.end,
+          sentences: [{ text: seg.text, start: seg.start, end: seg.end }],
+        }));
+      } else {
+        fullText = txText.trim();
+        paragraphs = [{ start: 0, end: 0, sentences: [{ text: fullText, start: 0, end: 0 }] }];
+      }
+
+      wordCount = fullText.split(/\s+/).length;
+
+      await setStatus("transcribing");
+      await setProgress(30);
+      await log("transcribing", `Transcript loaded: ${wordCount.toLocaleString()} words, ${paragraphs.length} segments.`);
+
+      await supabase.from("transcripts").insert({
+        podcast_id: pod.id,
+        full_text: fullText,
+        segments: paragraphs,
+        word_count: wordCount,
+      });
+
+      await setProgress(55);
+      await log("transcribing", "Transcript stored. Audio download and Whisper skipped.");
+
+      if (await checkCancelled()) {
+        return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+    } else {
+    // --- AUDIO PATH: download audio + transcribe with Whisper ---
 
     // 2. Download audio
     await setStatus("downloading");
@@ -171,7 +237,7 @@ Deno.serve(async (req: Request) => {
 
     // 2b. Upload to Supabase Storage (so we have a backup + can retry)
     await log("downloading", "Uploading audio to Supabase Storage...");
-    const storagePath = `${pod.id}.mp3`;
+    storagePath = `${pod.id}.mp3`;
     const audioBuffer = await audioBlob.arrayBuffer();
 
     const { error: uploadError } = await supabase.storage
@@ -218,16 +284,16 @@ Deno.serve(async (req: Request) => {
     }
 
     const whisperResult = await whisperResponse.json();
-    const fullText = whisperResult.text;
+    fullText = whisperResult.text;
     if (!fullText) throw new Error("No transcript returned from Whisper");
 
     const segments = whisperResult.segments || [];
-    const wordCount = fullText.split(/\s+/).length;
+    wordCount = fullText.split(/\s+/).length;
 
     await setProgress(55);
     await log("transcribing", `Transcription complete: ${wordCount.toLocaleString()} words, ${segments.length} segments.`);
 
-    const paragraphs = segments.map((seg: { start: number; end: number; text: string }) => ({
+    paragraphs = segments.map((seg: { start: number; end: number; text: string }) => ({
       start: seg.start,
       end: seg.end,
       sentences: [{ text: seg.text.trim(), start: seg.start, end: seg.end }],
@@ -243,6 +309,8 @@ Deno.serve(async (req: Request) => {
     if (await checkCancelled()) {
       return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    } // end audio path else block
 
     // 4. Chunk + Embed
     await setStatus("processing");
@@ -372,8 +440,10 @@ Deno.serve(async (req: Request) => {
     await setProgress(100);
     await log("ready", `Processing complete! ${chunks.length} chunks, ${wordCount.toLocaleString()} words.`);
 
-    // Clean up audio from storage
-    await supabase.storage.from("podcast-audio").remove([storagePath]);
+    // Clean up audio from storage (only if we uploaded audio)
+    if (storagePath) {
+      await supabase.storage.from("podcast-audio").remove([storagePath]);
+    }
 
     return new Response(
       JSON.stringify({ success: true, chunks_count: chunks.length }),
@@ -383,8 +453,7 @@ Deno.serve(async (req: Request) => {
     console.error("Process error:", err);
 
     try {
-      const body = await req.clone().json().catch(() => ({})) as { podcast_id?: string };
-      if (body.podcast_id) {
+      if (podcastId) {
         const supabase = createClient(
           Deno.env.get("SUPABASE_URL")!,
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -393,16 +462,16 @@ Deno.serve(async (req: Request) => {
         const { data: current } = await supabase
           .from("podcasts")
           .select("status")
-          .eq("id", body.podcast_id)
+          .eq("id", podcastId)
           .limit(1);
 
         if (current?.[0]?.status !== "cancelled") {
           await supabase
             .from("podcasts")
             .update({ status: "error", error_message: (err as Error).message, progress: 0 })
-            .eq("id", body.podcast_id);
+            .eq("id", podcastId);
           await supabase.from("processing_logs").insert({
-            podcast_id: body.podcast_id,
+            podcast_id: podcastId,
             step: "error",
             message: (err as Error).message,
           });
@@ -493,4 +562,39 @@ function createChunks(
   }
 
   return chunks;
+}
+
+function parseSRT(srt: string): { start: number; end: number; text: string }[] {
+  const segments: { start: number; end: number; text: string }[] = [];
+  const blocks = srt.trim().split(/\n\n+/);
+
+  for (const block of blocks) {
+    const lines = block.trim().split("\n");
+    if (lines.length < 3) continue;
+
+    const timeMatch = lines[1].match(
+      /(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/,
+    );
+    if (!timeMatch) continue;
+
+    const start = parseSRTTimestamp(timeMatch[1]);
+    const end = parseSRTTimestamp(timeMatch[2]);
+    const text = lines
+      .slice(2)
+      .join(" ")
+      .replace(/^Speaker \d+:\s*/i, "")
+      .trim();
+
+    if (text) {
+      segments.push({ start, end, text });
+    }
+  }
+
+  return segments;
+}
+
+function parseSRTTimestamp(ts: string): number {
+  const [timePart, msPart] = ts.replace(",", ".").split(".");
+  const [h, m, s] = timePart.split(":").map(Number);
+  return h * 3600 + m * 60 + s + parseInt(msPart) / 1000;
 }

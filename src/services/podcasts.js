@@ -221,6 +221,20 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
     }
   }
 
+  // Resolve transcript URL if user chose transcript method
+  let transcriptUrl = null
+  if (episode.processingMethod === 'transcript') {
+    if (episode.transcripts && episode.transcripts.length > 0) {
+      const srt = episode.transcripts.find(t =>
+        t.type === 'application/x-subrip' || t.type?.includes('srt')
+      )
+      const txt = episode.transcripts.find(t => t.type === 'text/plain')
+      transcriptUrl = (srt || txt || episode.transcripts[0]).url
+    } else if (episode.transcriptUrl) {
+      transcriptUrl = episode.transcriptUrl
+    }
+  }
+
   // New episode — create podcast row with Podcast Index metadata
   const { data: podcast, error } = await supabase
     .from('podcasts')
@@ -235,6 +249,7 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
       feed_url: episode.feedUrl || null,
       source: 'podcast_index',
       duration_seconds: episode.duration || null,
+      transcript_url: transcriptUrl,
       status: 'pending',
     })
     .select()

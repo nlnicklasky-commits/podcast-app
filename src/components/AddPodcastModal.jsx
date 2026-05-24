@@ -57,7 +57,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
     setLoadingEpisodes(true)
     setError('')
     try {
-      const eps = await getEpisodes(show.id)
+      const eps = await getEpisodes(show.id, show.feedUrl)
       setEpisodes(eps)
     } catch (err) {
       setError(err.message || 'Failed to load episodes')
@@ -74,7 +74,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
     setError('')
   }
 
-  async function handleSelectEpisode(episode) {
+  async function handleSelectEpisode(episode, method) {
     setLoading(true)
     setError('')
     try {
@@ -83,6 +83,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
         showTitle: selectedShow?.title || '',
         showArtwork: selectedShow?.artwork || '',
         feedUrl: selectedShow?.feedUrl || '',
+        processingMethod: method,
       }
       const result = await onAddFromIndex(enrichedEpisode)
       if (result?.alreadyProcessed) setError('')
@@ -91,6 +92,10 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
       setError(err.message || 'Failed to add episode')
       setLoading(false)
     }
+  }
+
+  function hasTranscript(episode) {
+    return !!(episode.transcriptUrl || (episode.transcripts && episode.transcripts.length > 0))
   }
 
   async function handleUrlSubmit(e) {
@@ -302,7 +307,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
               <>
                 {selectedShow && (
                   <p className="text-[12px] dim mb-3 m-0 shrink-0">
-                    by {selectedShow.author} · Select an episode to add
+                    by {selectedShow.author} · Choose transcript or audio for each episode
                   </p>
                 )}
 
@@ -326,40 +331,61 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                   )}
 
                   {!loadingEpisodes && episodes.map((ep) => (
-                    <button
+                    <div
                       key={ep.id}
-                      onClick={() => handleSelectEpisode(ep)}
-                      disabled={loading}
-                      className="w-full flex items-start gap-3 p-2.5 text-left disabled:opacity-50 disabled:cursor-not-allowed group transition-colors"
+                      className="p-2.5 transition-colors"
                       style={{ borderRadius: 'var(--r-md)' }}
-                      onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = 'var(--surface)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
                     >
-                      <div
-                        className="shrink-0 w-8 h-8 rounded-full grid place-items-center mt-0.5 transition-colors"
-                        style={{ background: 'var(--accent-soft)' }}
-                      >
-                        <Icons.Plus size={14} style={{ color: 'var(--accent)' }} />
+                      <p className="text-[13.5px] font-medium line-clamp-2 leading-snug m-0" style={{ color: 'var(--text)' }}>
+                        {decodeHtml(ep.title)}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {ep.duration > 0 && (
+                          <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>
+                            {formatDuration(ep.duration)}
+                          </span>
+                        )}
+                        {ep.datePublished > 0 && (
+                          <span className="text-[11px] mute">{formatDate(ep.datePublished)}</span>
+                        )}
+                        {ep.fileSize > 0 && (
+                          <span className="text-[11px] mute">{formatFileSize(ep.fileSize)}</span>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13.5px] font-medium line-clamp-2 leading-snug m-0" style={{ color: 'var(--text)' }}>
-                          {decodeHtml(ep.title)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          {ep.duration > 0 && (
-                            <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>
-                              {formatDuration(ep.duration)}
-                            </span>
-                          )}
-                          {ep.datePublished > 0 && (
-                            <span className="text-[11px] mute">{formatDate(ep.datePublished)}</span>
-                          )}
-                          {ep.fileSize > 0 && (
-                            <span className="text-[11px] mute">{formatFileSize(ep.fileSize)}</span>
-                          )}
-                        </div>
+                      <div className="flex gap-2 mt-2">
+                        {hasTranscript(ep) && (
+                          <button
+                            onClick={() => handleSelectEpisode(ep, 'transcript')}
+                            disabled={loading}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+                            style={{
+                              background: 'var(--accent)',
+                              color: 'var(--accent-fg)',
+                              borderRadius: 'var(--r-sm)',
+                            }}
+                          >
+                            <Icons.FileText size={12} />
+                            From Transcript
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleSelectEpisode(ep, 'audio')}
+                          disabled={loading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+                          style={{
+                            background: hasTranscript(ep) ? 'var(--surface)' : 'var(--accent)',
+                            color: hasTranscript(ep) ? 'var(--text-mute)' : 'var(--accent-fg)',
+                            border: hasTranscript(ep) ? '1px solid var(--border)' : 'none',
+                            borderRadius: 'var(--r-sm)',
+                          }}
+                        >
+                          <Icons.Mic size={12} />
+                          From Audio
+                        </button>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
 

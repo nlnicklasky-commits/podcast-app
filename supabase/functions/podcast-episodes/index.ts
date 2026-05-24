@@ -47,16 +47,59 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { feed_id } = await req.json();
+    const { feed_id, feed_url } = await req.json();
     if (!feed_id) {
       throw new Error("feed_id is required");
     }
 
     const data = await podcastIndexFetch("/episodes/byfeedid", {
       id: String(feed_id),
-      max: "20",
+      max: "50",
       fulltext: "1",
     });
+
+    // Fetch RSS feed to extract podcast:transcript tags (PI API doesn't expose them)
+    const transcriptMap = new Map<string, { url: string; type: string }[]>();
+    if (feed_url) {
+      try {
+        const rssResponse = await fetch(feed_url, {
+          headers: { "User-Agent": "PodcastBrain/1.0" },
+        });
+        if (rssResponse.ok) {
+          const rssText = await rssResponse.text();
+          // Split by <item> to process each episode
+          const items = rssText.split(/<item[\s>]/i).slice(1);
+          for (const item of items) {
+            // Extract enclosure URL to use as key for matching
+            const encMatch = item.match(/enclosureUrl="([^"]+)"|<enclosure[^>]+url="([^"]+)"/i);
+            const encUrl = encMatch?.[1] || encMatch?.[2] || "";
+
+            // Extract all podcast:transcript tags
+            const txRegex = /<podcast:transcript\s+([^>]+?)\/?\s*>/gi;
+            const transcripts: { url: string; type: string }[] = [];
+            let txMatch;
+            while ((txMatch = txRegex.exec(item)) !== null) {
+              const attrs = txMatch[1];
+              const urlMatch = attrs.match(/url="([^"]+)"/);
+              const typeMatch = attrs.match(/type="([^"]+)"/);
+              if (urlMatch) {
+                transcripts.push({
+                  url: urlMatch[1],
+                  type: typeMatch?.[1] || "text/plain",
+                });
+              }
+            }
+            if (transcripts.length > 0 && encUrl) {
+              // Normalize URL for matching (strip tracking redirects)
+              const normalizedKey = encUrl.split("/").pop() || encUrl;
+              transcriptMap.set(normalizedKey, transcripts);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("RSS transcript fetch failed (non-fatal):", e);
+      }
+    }
 
     const episodes = (data.items || []).map(
       (ep: {
@@ -71,19 +114,26 @@ Deno.serve(async (req: Request) => {
         image: string;
         link: string;
         feedId: number;
-      }) => ({
-        id: ep.id,
-        title: ep.title,
-        description: ep.description,
-        datePublished: ep.datePublished,
-        duration: ep.duration,
-        enclosureUrl: ep.enclosureUrl,
-        enclosureType: ep.enclosureType,
-        fileSize: ep.enclosureLength,
-        image: ep.image,
-        link: ep.link,
-        feedId: ep.feedId,
-      }),
+      }) => {
+        // Match transcript data from RSS feed by enclosure URL filename
+        const epFilename = ep.enclosureUrl?.split("/").pop() || "";
+        const rssTranscripts = transcriptMap.get(epFilename) || [];
+
+        return {
+          id: ep.id,
+          title: ep.title,
+          description: ep.description,
+          datePublished: ep.datePublished,
+          duration: ep.duration,
+          enclosureUrl: ep.enclosureUrl,
+          enclosureType: ep.enclosureType,
+          fileSize: ep.enclosureLength,
+          image: ep.image,
+          link: ep.link,
+          feedId: ep.feedId,
+          transcripts: rssTranscripts,
+        };
+      },
     );
 
     return new Response(JSON.stringify({ episodes }), {

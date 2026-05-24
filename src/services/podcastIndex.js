@@ -31,16 +31,16 @@ export async function searchShows(query) {
 
 /**
  * Get episodes for a podcast feed by Podcast Index feed ID.
- * Returns array of { id, title, description, datePublished, duration, enclosureUrl, image, fileSize }
+ * Returns array of { id, title, description, datePublished, duration, enclosureUrl, image, fileSize, transcriptUrl, transcripts }
  */
-export async function getEpisodes(feedId) {
+export async function getEpisodes(feedId, feedUrl) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/podcast-episodes`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     },
-    body: JSON.stringify({ feed_id: feedId }),
+    body: JSON.stringify({ feed_id: feedId, feed_url: feedUrl || null }),
   })
 
   if (!response.ok) {
