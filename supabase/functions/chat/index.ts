@@ -1,10 +1,93 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Models
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const CHAT_MODEL = "llama-3.3-70b-versatile";
+
+// Search parameters
+const MAX_CHUNKS = 10;
+const SIMILARITY_THRESHOLD = 0.3;
+const MAX_HISTORY_MESSAGES = 20;
+const CHAT_MAX_TOKENS = 2048;
+const SOURCE_PREVIEW_LENGTH = 200;
+
+// Timeouts (ms)
+const TIMEOUT_EMBEDDING = 2 * 60 * 1000;  // 2 min
+const TIMEOUT_CHAT = 2 * 60 * 1000;       // 2 min
+
+// System prompt
+const SYSTEM_PROMPT_TEMPLATE = `You are a helpful podcast research assistant. Answer questions based on the podcast transcript excerpts provided below. Always cite your sources using [Source N] notation. If the context doesn't contain enough information to answer fully, say so.
+
+Relevant podcast excerpts:
+`;
+
+// Error codes
+const ErrorCode = {
+  MISSING_PARAM: "MISSING_PARAM",
+  NOT_FOUND: "NOT_FOUND",
+  CONFIG_ERROR: "CONFIG_ERROR",
+  EMBEDDING_FAILED: "EMBEDDING_FAILED",
+  EMBEDDING_TIMEOUT: "EMBEDDING_TIMEOUT",
+  SEARCH_FAILED: "SEARCH_FAILED",
+  CHAT_FAILED: "CHAT_FAILED",
+  CHAT_TIMEOUT: "CHAT_TIMEOUT",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function errorResponse(
+  message: string,
+  code: string,
+  status: number,
+): Response {
+  return new Response(
+    JSON.stringify({ error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** Wraps fetch with an AbortController timeout. */
+async function fetchWithTimeout(
+  url: string | URL,
+  init: RequestInit & { timeout?: number },
+): Promise<Response> {
+  const { timeout, ...fetchInit } = init;
+  if (!timeout) return fetch(url, fetchInit);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...fetchInit, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function formatTimestamp(seconds: number): string {
+  if (!seconds) return "0:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -12,9 +95,17 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { knowledge_base_id, question, conversation_id } = await req.json();
-    if (!knowledge_base_id || !question) {
-      throw new Error("knowledge_base_id and question are required");
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+    }
+
+    const { knowledge_base_id, question, conversation_id } = body;
+    if (!knowledge_base_id) {
+      return errorResponse("knowledge_base_id is required", ErrorCode.MISSING_PARAM, 400);
+    }
+    if (!question || typeof question !== "string" || question.trim().length === 0) {
+      return errorResponse("question is required", ErrorCode.MISSING_PARAM, 400);
     }
 
     const supabase = createClient(
@@ -22,23 +113,50 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")!;
-    const groqKey = Deno.env.get("GROQ_API_KEY")!;
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openaiKey) {
+      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+    }
+    const groqKey = Deno.env.get("GROQ_API_KEY");
+    if (!groqKey) {
+      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+    }
 
     // 1. Generate embedding for the question
-    const embResponse = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: question,
-      }),
-    });
+    let embResponse: Response;
+    try {
+      embResponse = await fetchWithTimeout("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: EMBEDDING_MODEL,
+          input: question,
+        }),
+        timeout: TIMEOUT_EMBEDDING,
+      });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        return errorResponse(
+          "Question embedding timed out",
+          ErrorCode.EMBEDDING_TIMEOUT,
+          500,
+        );
+      }
+      throw err;
+    }
 
-    if (!embResponse.ok) throw new Error("Failed to generate question embedding");
+    if (!embResponse.ok) {
+      const errText = await embResponse.text();
+      return errorResponse(
+        `Failed to generate question embedding: ${errText}`,
+        ErrorCode.EMBEDDING_FAILED,
+        500,
+      );
+    }
+
     const embResult = await embResponse.json();
     const queryEmbedding = embResult.data[0].embedding;
 
@@ -48,12 +166,18 @@ Deno.serve(async (req: Request) => {
       {
         query_embedding: JSON.stringify(queryEmbedding),
         match_kb_id: knowledge_base_id,
-        match_count: 10,
-        match_threshold: 0.3,
+        match_count: MAX_CHUNKS,
+        match_threshold: SIMILARITY_THRESHOLD,
       },
     );
 
-    if (searchErr) throw new Error(`Search error: ${searchErr.message}`);
+    if (searchErr) {
+      return errorResponse(
+        `Vector search failed: ${searchErr.message}`,
+        ErrorCode.SEARCH_FAILED,
+        500,
+      );
+    }
 
     // 3. Get podcast titles for context
     const podcastIds = [...new Set((chunks || []).map((c: { podcast_id: string }) => c.podcast_id))];
@@ -86,7 +210,7 @@ Deno.serve(async (req: Request) => {
         .select("role, content")
         .eq("conversation_id", conversation_id)
         .order("created_at", { ascending: true })
-        .limit(20);
+        .limit(MAX_HISTORY_MESSAGES);
 
       history = (prevMessages || []).map((m: { role: string; content: string }) => ({
         role: m.role,
@@ -94,35 +218,52 @@ Deno.serve(async (req: Request) => {
       }));
     }
 
-    // 6. Send to Groq Llama 3.3 70B (fast, capable, free tier for personal use)
+    // 6. Send to Groq
     const messages = [
       {
         role: "system",
-        content: `You are a helpful podcast research assistant. Answer questions based on the podcast transcript excerpts provided below. Always cite your sources using [Source N] notation. If the context doesn't contain enough information to answer fully, say so.\n\nRelevant podcast excerpts:\n${context}`,
+        content: `${SYSTEM_PROMPT_TEMPLATE}${context}`,
       },
       ...history,
       { role: "user", content: question },
     ];
 
-    const chatResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          "Content-Type": "application/json",
+    let chatResponse: Response;
+    try {
+      chatResponse = await fetchWithTimeout(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: CHAT_MODEL,
+            max_tokens: CHAT_MAX_TOKENS,
+            messages,
+          }),
+          timeout: TIMEOUT_CHAT,
         },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 2048,
-          messages,
-        }),
-      },
-    );
+      );
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        return errorResponse(
+          "Chat response timed out",
+          ErrorCode.CHAT_TIMEOUT,
+          500,
+        );
+      }
+      throw err;
+    }
 
     if (!chatResponse.ok) {
       const errText = await chatResponse.text();
-      throw new Error(`Groq chat error: ${chatResponse.status} ${errText}`);
+      return errorResponse(
+        `Chat model error: ${chatResponse.status} ${errText}`,
+        ErrorCode.CHAT_FAILED,
+        500,
+      );
     }
 
     const chatResult = await chatResponse.json();
@@ -137,7 +278,7 @@ Deno.serve(async (req: Request) => {
           podcast_id: chunk.podcast_id,
           podcast_title: pod?.title || "Unknown",
           podcast_channel: pod?.channel || "",
-          text: chunk.text.slice(0, 200) + (chunk.text.length > 200 ? "..." : ""),
+          text: chunk.text.slice(0, SOURCE_PREVIEW_LENGTH) + (chunk.text.length > SOURCE_PREVIEW_LENGTH ? "..." : ""),
           start_time: chunk.start_time,
           end_time: chunk.end_time,
           similarity: chunk.similarity,
@@ -176,21 +317,10 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     console.error("Chat error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+    return errorResponse(
+      (err as Error).message,
+      ErrorCode.INTERNAL_ERROR,
+      500,
     );
   }
 });
-
-function formatTimestamp(seconds: number): string {
-  if (!seconds) return "0:00";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}

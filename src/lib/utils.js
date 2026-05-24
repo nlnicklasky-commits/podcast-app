@@ -35,21 +35,12 @@ export function timeAgo(dateString) {
 }
 
 export const statusConfig = {
-  ready:        { color: 'var(--success)', label: 'ready', anim: false },
-  pending:      { color: 'var(--text-mute)', label: 'pending', anim: false },
-  downloading:  { color: 'var(--warn)', label: 'downloading', anim: true },
-  transcribing: { color: 'var(--warn)', label: 'transcribing', anim: true },
-  processing:   { color: 'var(--accent)', label: 'processing', anim: true },
-  error:        { color: 'var(--error)', label: 'error', anim: false },
-  cancelled:    { color: 'var(--text-mute)', label: 'cancelled', anim: false },
+  ready: { color: 'var(--success)', label: 'ready', anim: false, className: 'bg-green-500/20 text-green-400' },
+  pending: { color: 'var(--text-mute)', label: 'pending', anim: false, className: 'bg-yellow-500/20 text-yellow-400' },
+  downloading: { color: 'var(--warn)', label: 'downloading', anim: true, className: 'bg-blue-500/20 text-blue-400' },
+  transcribing: { color: 'var(--warn)', label: 'transcribing', anim: true, className: 'bg-purple-500/20 text-purple-400' },
+  processing: { color: 'var(--accent)', label: 'processing', anim: true, className: 'bg-indigo-500/20 text-indigo-400' },
+  error: { color: 'var(--error)', label: 'error', anim: false, className: 'bg-red-500/20 text-red-400' },
+  cancelled: { color: 'var(--text-mute)', label: 'cancelled', anim: false, className: 'bg-yellow-500/20 text-yellow-400' },
 }
 
-export const statusColors = {
-  pending: 'bg-yellow-500/20 text-yellow-400',
-  downloading: 'bg-blue-500/20 text-blue-400',
-  transcribing: 'bg-purple-500/20 text-purple-400',
-  processing: 'bg-indigo-500/20 text-indigo-400',
-  ready: 'bg-green-500/20 text-green-400',
-  error: 'bg-red-500/20 text-red-400',
-  cancelled: 'bg-yellow-500/20 text-yellow-400',
-}

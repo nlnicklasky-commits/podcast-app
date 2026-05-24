@@ -1,15 +1,49 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MAX_EPISODES = 50;
+const TIMEOUT_PODCAST_INDEX = 30 * 1000; // 30 seconds
+const TIMEOUT_RSS_FEED = 30 * 1000;      // 30 seconds
+
+const ErrorCode = {
+  MISSING_PARAM: "MISSING_PARAM",
+  CONFIG_ERROR: "CONFIG_ERROR",
+  PODCAST_INDEX_FAILED: "PODCAST_INDEX_FAILED",
+  PODCAST_INDEX_TIMEOUT: "PODCAST_INDEX_TIMEOUT",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function errorResponse(
+  message: string,
+  code: string,
+  status: number,
+): Response {
+  return new Response(
+    JSON.stringify({ error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 async function podcastIndexFetch(endpoint: string, params: Record<string, string>) {
   const apiKey = Deno.env.get("PODCAST_INDEX_KEY");
   const apiSecret = Deno.env.get("PODCAST_INDEX_SECRET");
   if (!apiKey || !apiSecret) {
-    throw new Error("PODCAST_INDEX_KEY and PODCAST_INDEX_SECRET must be set");
+    throw Object.assign(
+      new Error("PODCAST_INDEX_KEY and PODCAST_INDEX_SECRET must be set"),
+      { code: ErrorCode.CONFIG_ERROR, httpStatus: 500 },
+    );
   }
 
   const ts = Math.floor(Date.now() / 1000).toString();
@@ -23,23 +57,46 @@ async function podcastIndexFetch(endpoint: string, params: Record<string, string
     url.searchParams.set(k, v);
   }
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      "User-Agent": "PodcastBrain/1.0",
-      "X-Auth-Key": apiKey,
-      "X-Auth-Date": ts,
-      "Authorization": authHash,
-    },
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_PODCAST_INDEX);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Podcast Index error:", errText);
-    throw new Error(`Podcast Index API error: ${response.status}`);
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "PodcastBrain/1.0",
+        "X-Auth-Key": apiKey,
+        "X-Auth-Date": ts,
+        "Authorization": authHash,
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("Podcast Index error:", errText);
+      throw Object.assign(
+        new Error(`Podcast Index API error: HTTP ${response.status}`),
+        { code: ErrorCode.PODCAST_INDEX_FAILED, httpStatus: 500 },
+      );
+    }
+
+    return response.json();
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw Object.assign(
+        new Error(`Podcast Index API timed out after ${TIMEOUT_PODCAST_INDEX / 1000}s`),
+        { code: ErrorCode.PODCAST_INDEX_TIMEOUT, httpStatus: 500 },
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return response.json();
 }
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -47,14 +104,19 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { feed_id, feed_url } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+    }
+
+    const { feed_id, feed_url } = body;
     if (!feed_id) {
-      throw new Error("feed_id is required");
+      return errorResponse("feed_id is required", ErrorCode.MISSING_PARAM, 400);
     }
 
     const data = await podcastIndexFetch("/episodes/byfeedid", {
       id: String(feed_id),
-      max: "50",
+      max: String(MAX_EPISODES),
       fulltext: "1",
     });
 
@@ -62,42 +124,55 @@ Deno.serve(async (req: Request) => {
     const transcriptMap = new Map<string, { url: string; type: string }[]>();
     if (feed_url) {
       try {
-        const rssResponse = await fetch(feed_url, {
-          headers: { "User-Agent": "PodcastBrain/1.0" },
-        });
-        if (rssResponse.ok) {
-          const rssText = await rssResponse.text();
-          // Split by <item> to process each episode
-          const items = rssText.split(/<item[\s>]/i).slice(1);
-          for (const item of items) {
-            // Extract enclosure URL to use as key for matching
-            const encMatch = item.match(/enclosureUrl="([^"]+)"|<enclosure[^>]+url="([^"]+)"/i);
-            const encUrl = encMatch?.[1] || encMatch?.[2] || "";
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT_RSS_FEED);
 
-            // Extract all podcast:transcript tags
-            const txRegex = /<podcast:transcript\s+([^>]+?)\/?\s*>/gi;
-            const transcripts: { url: string; type: string }[] = [];
-            let txMatch;
-            while ((txMatch = txRegex.exec(item)) !== null) {
-              const attrs = txMatch[1];
-              const urlMatch = attrs.match(/url="([^"]+)"/);
-              const typeMatch = attrs.match(/type="([^"]+)"/);
-              if (urlMatch) {
-                transcripts.push({
-                  url: urlMatch[1],
-                  type: typeMatch?.[1] || "text/plain",
-                });
+        try {
+          const rssResponse = await fetch(feed_url, {
+            headers: { "User-Agent": "PodcastBrain/1.0" },
+            signal: controller.signal,
+          });
+
+          if (rssResponse.ok) {
+            const rssText = await rssResponse.text();
+            // Split by <item> to process each episode
+            const items = rssText.split(/<item[\s>]/i).slice(1);
+            for (const item of items) {
+              // Extract enclosure URL to use as key for matching
+              const encMatch = item.match(/enclosureUrl="([^"]+)"|<enclosure[^>]+url="([^"]+)"/i);
+              const encUrl = encMatch?.[1] || encMatch?.[2] || "";
+
+              // Extract all podcast:transcript tags
+              const txRegex = /<podcast:transcript\s+([^>]+?)\/?\s*>/gi;
+              const transcripts: { url: string; type: string }[] = [];
+              let txMatch;
+              while ((txMatch = txRegex.exec(item)) !== null) {
+                const attrs = txMatch[1];
+                const urlMatch = attrs.match(/url="([^"]+)"/);
+                const typeMatch = attrs.match(/type="([^"]+)"/);
+                if (urlMatch) {
+                  transcripts.push({
+                    url: urlMatch[1],
+                    type: typeMatch?.[1] || "text/plain",
+                  });
+                }
+              }
+              if (transcripts.length > 0 && encUrl) {
+                // Normalize URL for matching (strip tracking redirects)
+                const normalizedKey = encUrl.split("/").pop() || encUrl;
+                transcriptMap.set(normalizedKey, transcripts);
               }
             }
-            if (transcripts.length > 0 && encUrl) {
-              // Normalize URL for matching (strip tracking redirects)
-              const normalizedKey = encUrl.split("/").pop() || encUrl;
-              transcriptMap.set(normalizedKey, transcripts);
-            }
           }
+        } finally {
+          clearTimeout(timer);
         }
       } catch (e) {
-        console.error("RSS transcript fetch failed (non-fatal):", e);
+        // RSS transcript fetch is non-fatal -- episodes still work without transcripts
+        const errMsg = (e as Error).name === "AbortError"
+          ? `RSS feed fetch timed out after ${TIMEOUT_RSS_FEED / 1000}s (non-fatal)`
+          : `RSS transcript fetch failed (non-fatal): ${(e as Error).message}`;
+        console.error(errMsg);
       }
     }
 
@@ -141,12 +216,11 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("Podcast episodes error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+    const error = err as Error & { code?: string; httpStatus?: number };
+    return errorResponse(
+      error.message,
+      error.code || ErrorCode.INTERNAL_ERROR,
+      error.httpStatus || 500,
     );
   }
 });

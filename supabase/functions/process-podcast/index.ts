@@ -1,12 +1,106 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const COBALT_URL = "https://cobalt-production-8df9.up.railway.app";
+
+// Models
+const WHISPER_MODEL = "whisper-large-v3";
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const INSIGHTS_MODEL = "llama-3.3-70b-versatile";
+
+// Limits
+const MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB (Whisper limit)
+const CHUNK_MAX_TOKENS = 500;
+const CHUNK_TARGET_TOKENS = 300;
+const EMBEDDING_BATCH_SIZE = 20;
+const INSIGHTS_MAX_CHARS = 80_000;
+const INSIGHTS_MAX_TOKENS = 4096;
+
+// Timeouts (ms)
+const TIMEOUT_AUDIO_DOWNLOAD = 5 * 60 * 1000;   // 5 min
+const TIMEOUT_COBALT_API = 2 * 60 * 1000;        // 2 min
+const TIMEOUT_TRANSCRIPTION = 5 * 60 * 1000;     // 5 min
+const TIMEOUT_EMBEDDING = 2 * 60 * 1000;         // 2 min
+const TIMEOUT_INSIGHTS = 2 * 60 * 1000;          // 2 min
+const TIMEOUT_TRANSCRIPT_FETCH = 2 * 60 * 1000;  // 2 min
+
+// Progress breakpoints (percentage)
+const PROGRESS = {
+  DOWNLOAD_START: 0,
+  DOWNLOAD_COBALT_URL: 5,
+  DOWNLOAD_COMPLETE: 15,
+  UPLOAD_COMPLETE: 30,
+  TRANSCRIBE_COMPLETE: 55,
+  CHUNK_EMBED_START: 55,
+  CHUNK_EMBED_END: 90,
+  INSIGHTS_START: 90,
+  DONE: 100,
+} as const;
+
+// Error codes
+const ErrorCode = {
+  MISSING_PARAM: "MISSING_PARAM",
+  NOT_FOUND: "NOT_FOUND",
+  CONFIG_ERROR: "CONFIG_ERROR",
+  AUDIO_TOO_LARGE: "AUDIO_TOO_LARGE",
+  DOWNLOAD_FAILED: "DOWNLOAD_FAILED",
+  DOWNLOAD_TIMEOUT: "DOWNLOAD_TIMEOUT",
+  UPLOAD_FAILED: "UPLOAD_FAILED",
+  TRANSCRIPTION_FAILED: "TRANSCRIPTION_FAILED",
+  TRANSCRIPTION_TIMEOUT: "TRANSCRIPTION_TIMEOUT",
+  TRANSCRIPT_FETCH_FAILED: "TRANSCRIPT_FETCH_FAILED",
+  EMBEDDING_FAILED: "EMBEDDING_FAILED",
+  EMBEDDING_TIMEOUT: "EMBEDDING_TIMEOUT",
+  INSIGHTS_FAILED: "INSIGHTS_FAILED",
+  INSIGHTS_TIMEOUT: "INSIGHTS_TIMEOUT",
+  CANCELLED: "CANCELLED",
+  INTERNAL_ERROR: "INTERNAL_ERROR",
+} as const;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function errorResponse(
+  message: string,
+  code: string,
+  status: number,
+): Response {
+  return new Response(
+    JSON.stringify({ error: message, code }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** Wraps fetch with an AbortController timeout. */
+async function fetchWithTimeout(
+  url: string | URL,
+  init: RequestInit & { timeout?: number },
+): Promise<Response> {
+  const { timeout, ...fetchInit } = init;
+  if (!timeout) return fetch(url, fetchInit);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    return await fetch(url, { ...fetchInit, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -16,9 +110,16 @@ Deno.serve(async (req: Request) => {
   let podcastId: string | undefined;
 
   try {
-    const { podcast_id } = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") {
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+    }
+
+    const { podcast_id } = body;
     podcastId = podcast_id;
-    if (!podcast_id) throw new Error("podcast_id is required");
+    if (!podcast_id) {
+      return errorResponse("podcast_id is required", ErrorCode.MISSING_PARAM, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -26,9 +127,13 @@ Deno.serve(async (req: Request) => {
     );
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) throw new Error("OPENAI_API_KEY not set");
+    if (!openaiKey) {
+      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+    }
     const groqKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqKey) throw new Error("GROQ_API_KEY not set");
+    if (!groqKey) {
+      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+    }
 
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
@@ -37,7 +142,10 @@ Deno.serve(async (req: Request) => {
       .eq("id", podcast_id)
       .limit(1);
 
-    if (podErr || !podcast?.[0]) throw new Error("Podcast not found");
+    if (podErr) throw new Error(`Database error: ${podErr.message}`);
+    if (!podcast?.[0]) {
+      return errorResponse(`Podcast ${podcast_id} not found`, ErrorCode.NOT_FOUND, 404);
+    }
     const pod = podcast[0];
 
     async function setStatus(status: string, error_message?: string) {
@@ -55,6 +163,7 @@ Deno.serve(async (req: Request) => {
     }
 
     async function log(step: string, message: string) {
+      console.log(`[${pod.id}] [${step}] ${message}`);
       await supabase.from("processing_logs").insert({
         podcast_id: pod.id,
         step,
@@ -83,13 +192,20 @@ Deno.serve(async (req: Request) => {
       await log("cancelled", "Cleanup complete. Status reset to pending.");
     }
 
+    function cancelledResponse(): Response {
+      return new Response(
+        JSON.stringify({ cancelled: true, code: ErrorCode.CANCELLED }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ============================================================
     // Overall progress layout:
-    //   Download/Transcript    =  0% – 15%
-    //   Upload to Storage      = 15% – 30%  (audio path only)
-    //   Transcribe             = 30% – 55%
-    //   Chunk+Embed            = 55% – 90%
-    //   Insights               = 90% – 100%
+    //   Download/Transcript    =  0% - 15%
+    //   Upload to Storage      = 15% - 30%  (audio path only)
+    //   Transcribe             = 30% - 55%
+    //   Chunk+Embed            = 55% - 90%
+    //   Insights               = 90% - 100%
     // ============================================================
 
     let fullText: string;
@@ -100,22 +216,37 @@ Deno.serve(async (req: Request) => {
     if (pod.transcript_url) {
       // --- TRANSCRIPT PATH: fetch pre-existing transcript from RSS feed ---
       await setStatus("downloading");
-      await setProgress(5);
+      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
       await log("downloading", `Fetching transcript from RSS feed...`);
 
-      const txResponse = await fetch(pod.transcript_url);
+      let txResponse: Response;
+      try {
+        txResponse = await fetchWithTimeout(pod.transcript_url, {
+          timeout: TIMEOUT_TRANSCRIPT_FETCH,
+        });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          throw Object.assign(
+            new Error(`Transcript fetch timed out after ${TIMEOUT_TRANSCRIPT_FETCH / 1000}s`),
+            { code: ErrorCode.TRANSCRIPT_FETCH_FAILED, httpStatus: 422 },
+          );
+        }
+        throw err;
+      }
+
       if (!txResponse.ok) {
-        throw new Error(`Failed to fetch transcript: ${txResponse.status}`);
+        throw Object.assign(
+          new Error(`Failed to fetch transcript: HTTP ${txResponse.status}`),
+          { code: ErrorCode.TRANSCRIPT_FETCH_FAILED, httpStatus: 422 },
+        );
       }
 
       const txText = await txResponse.text();
       const txSizeKB = (txText.length / 1024).toFixed(0);
-      await setProgress(15);
+      await setProgress(PROGRESS.DOWNLOAD_COMPLETE);
       await log("downloading", `Fetched transcript (${txSizeKB}KB).`);
 
-      if (await checkCancelled()) {
-        return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (await checkCancelled()) return cancelledResponse();
 
       const isSRT = pod.transcript_url.includes(".srt") || pod.transcript_url.includes("subrip");
 
@@ -135,7 +266,7 @@ Deno.serve(async (req: Request) => {
       wordCount = fullText.split(/\s+/).length;
 
       await setStatus("transcribing");
-      await setProgress(30);
+      await setProgress(PROGRESS.UPLOAD_COMPLETE);
       await log("transcribing", `Transcript loaded: ${wordCount.toLocaleString()} words, ${paragraphs.length} segments.`);
 
       await supabase.from("transcripts").insert({
@@ -145,95 +276,144 @@ Deno.serve(async (req: Request) => {
         word_count: wordCount,
       });
 
-      await setProgress(55);
+      await setProgress(PROGRESS.TRANSCRIBE_COMPLETE);
       await log("transcribing", "Transcript stored. Audio download and Whisper skipped.");
 
-      if (await checkCancelled()) {
-        return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (await checkCancelled()) return cancelledResponse();
 
     } else {
     // --- AUDIO PATH: download audio + transcribe with Whisper ---
 
     // 2. Download audio
     await setStatus("downloading");
-    await setProgress(0);
+    await setProgress(PROGRESS.DOWNLOAD_START);
 
     let audioBlob: Blob;
 
     if (pod.enclosure_url) {
-      // PODCAST INDEX / RSS SOURCE — direct download from enclosure URL
+      // PODCAST INDEX / RSS SOURCE -- direct download from enclosure URL
       await log("downloading", `Downloading audio directly from RSS feed: ${pod.enclosure_url.slice(0, 100)}...`);
 
-      const audioResponse = await fetch(pod.enclosure_url, {
-        headers: { "User-Agent": "PodcastBrain/1.0" },
-      });
+      let audioResponse: Response;
+      try {
+        audioResponse = await fetchWithTimeout(pod.enclosure_url, {
+          headers: { "User-Agent": "PodcastBrain/1.0" },
+          timeout: TIMEOUT_AUDIO_DOWNLOAD,
+        });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          throw Object.assign(
+            new Error(`Audio download timed out after ${TIMEOUT_AUDIO_DOWNLOAD / 1000}s`),
+            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
+          );
+        }
+        throw err;
+      }
 
       if (!audioResponse.ok) {
-        throw new Error(`Failed to download audio from RSS feed: ${audioResponse.status}`);
+        throw Object.assign(
+          new Error(`Failed to download audio from RSS feed: HTTP ${audioResponse.status}`),
+          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+        );
       }
 
       audioBlob = await audioResponse.blob();
-      await setProgress(5);
+      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
       await log("downloading", `Downloaded ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB from RSS feed.`);
     } else {
-      // YOUTUBE SOURCE — download via Cobalt (Railway)
+      // YOUTUBE SOURCE -- download via Cobalt (Railway)
       await log("downloading", `Requesting audio from Cobalt for: ${pod.url}`);
 
-      const cobaltResponse = await fetch(COBALT_URL, {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: pod.url,
-          downloadMode: "audio",
-          audioFormat: "mp3",
-        }),
-      });
+      let cobaltResponse: Response;
+      try {
+        cobaltResponse = await fetchWithTimeout(COBALT_URL, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: pod.url,
+            downloadMode: "audio",
+            audioFormat: "mp3",
+          }),
+          timeout: TIMEOUT_COBALT_API,
+        });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          throw Object.assign(
+            new Error(`Cobalt API timed out after ${TIMEOUT_COBALT_API / 1000}s`),
+            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
+          );
+        }
+        throw err;
+      }
 
       if (!cobaltResponse.ok) {
         const errText = await cobaltResponse.text();
-        throw new Error(`Cobalt API error: ${cobaltResponse.status} ${errText}`);
+        throw Object.assign(
+          new Error(`Cobalt API error: ${cobaltResponse.status} ${errText}`),
+          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+        );
       }
 
       const cobaltResult = await cobaltResponse.json();
 
       if (cobaltResult.status === "error") {
-        throw new Error(`Cobalt error: ${cobaltResult.error?.code || "unknown"}`);
+        throw Object.assign(
+          new Error(`Cobalt error: ${cobaltResult.error?.code || "unknown"}`),
+          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+        );
       }
 
       const audioUrl = cobaltResult.url;
       if (!audioUrl) {
-        throw new Error(`Cobalt did not return a download URL. Response: ${JSON.stringify(cobaltResult)}`);
+        throw Object.assign(
+          new Error(`Cobalt did not return a download URL. Response: ${JSON.stringify(cobaltResult)}`),
+          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+        );
       }
 
-      await setProgress(5);
+      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
       await log("downloading", "Got download URL from Cobalt. Downloading audio...");
 
-      const audioResponse = await fetch(audioUrl);
+      let audioResponse: Response;
+      try {
+        audioResponse = await fetchWithTimeout(audioUrl, {
+          timeout: TIMEOUT_AUDIO_DOWNLOAD,
+        });
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          throw Object.assign(
+            new Error(`Audio download from Cobalt URL timed out after ${TIMEOUT_AUDIO_DOWNLOAD / 1000}s`),
+            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
+          );
+        }
+        throw err;
+      }
+
       if (!audioResponse.ok) {
-        throw new Error(`Failed to download audio from Cobalt URL: ${audioResponse.status}`);
+        throw Object.assign(
+          new Error(`Failed to download audio from Cobalt URL: HTTP ${audioResponse.status}`),
+          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+        );
       }
 
       audioBlob = await audioResponse.blob();
     }
 
     const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(1);
-    await setProgress(15);
+    await setProgress(PROGRESS.DOWNLOAD_COMPLETE);
     await log("downloading", `Downloaded ${sizeMB}MB audio file.`);
 
-    const MAX_SIZE = 25 * 1024 * 1024;
-    if (audioBlob.size > MAX_SIZE) {
-      throw new Error(
-        `Audio file is ${sizeMB}MB, which exceeds OpenAI Whisper's 25MB limit. Try a shorter podcast.`
+    if (audioBlob.size > MAX_AUDIO_SIZE_BYTES) {
+      throw Object.assign(
+        new Error(`Audio file is ${sizeMB}MB, which exceeds the ${MAX_AUDIO_SIZE_BYTES / 1024 / 1024}MB limit. Try a shorter podcast.`),
+        { code: ErrorCode.AUDIO_TOO_LARGE, httpStatus: 422 },
       );
     }
 
-    if (await checkCancelled()) {
-      return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (await checkCancelled()) return cancelledResponse();
 
     // 2b. Upload to Supabase Storage (so we have a backup + can retry)
     await log("downloading", "Uploading audio to Supabase Storage...");
@@ -248,49 +428,70 @@ Deno.serve(async (req: Request) => {
       });
 
     if (uploadError) {
-      throw new Error(`Storage upload failed: ${uploadError.message}`);
+      throw Object.assign(
+        new Error(`Storage upload failed: ${uploadError.message}`),
+        { code: ErrorCode.UPLOAD_FAILED, httpStatus: 500 },
+      );
     }
 
-    await setProgress(30);
+    await setProgress(PROGRESS.UPLOAD_COMPLETE);
     await log("downloading", `Uploaded to Storage: ${storagePath} (${sizeMB}MB). Download complete.`);
 
-    if (await checkCancelled()) {
-      return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (await checkCancelled()) return cancelledResponse();
 
     // 3. Transcribe with Groq Whisper-Large-v3
     await setStatus("transcribing");
-    await setProgress(30);
-    await log("transcribing", "Sending audio to Groq Whisper-Large-v3...");
+    await setProgress(PROGRESS.UPLOAD_COMPLETE);
+    await log("transcribing", `Sending audio to Groq ${WHISPER_MODEL}...`);
 
     const formData = new FormData();
     formData.append("file", audioBlob, "audio.mp3");
-    formData.append("model", "whisper-large-v3");
+    formData.append("model", WHISPER_MODEL);
     formData.append("response_format", "verbose_json");
     formData.append("timestamp_granularities[]", "segment");
 
-    const whisperResponse = await fetch(
-      "https://api.groq.com/openai/v1/audio/transcriptions",
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${groqKey}` },
-        body: formData,
-      },
-    );
+    let whisperResponse: Response;
+    try {
+      whisperResponse = await fetchWithTimeout(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${groqKey}` },
+          body: formData,
+          timeout: TIMEOUT_TRANSCRIPTION,
+        },
+      );
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw Object.assign(
+          new Error(`Transcription timed out after ${TIMEOUT_TRANSCRIPTION / 1000}s`),
+          { code: ErrorCode.TRANSCRIPTION_TIMEOUT, httpStatus: 500 },
+        );
+      }
+      throw err;
+    }
 
     if (!whisperResponse.ok) {
       const errText = await whisperResponse.text();
-      throw new Error(`Groq Whisper error: ${whisperResponse.status} ${errText}`);
+      throw Object.assign(
+        new Error(`Groq Whisper error: ${whisperResponse.status} ${errText}`),
+        { code: ErrorCode.TRANSCRIPTION_FAILED, httpStatus: 500 },
+      );
     }
 
     const whisperResult = await whisperResponse.json();
     fullText = whisperResult.text;
-    if (!fullText) throw new Error("No transcript returned from Whisper");
+    if (!fullText) {
+      throw Object.assign(
+        new Error("No transcript returned from Whisper"),
+        { code: ErrorCode.TRANSCRIPTION_FAILED, httpStatus: 500 },
+      );
+    }
 
     const segments = whisperResult.segments || [];
     wordCount = fullText.split(/\s+/).length;
 
-    await setProgress(55);
+    await setProgress(PROGRESS.TRANSCRIBE_COMPLETE);
     await log("transcribing", `Transcription complete: ${wordCount.toLocaleString()} words, ${segments.length} segments.`);
 
     paragraphs = segments.map((seg: { start: number; end: number; text: string }) => ({
@@ -306,49 +507,59 @@ Deno.serve(async (req: Request) => {
       word_count: wordCount,
     });
 
-    if (await checkCancelled()) {
-      return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (await checkCancelled()) return cancelledResponse();
 
     } // end audio path else block
 
     // 4. Chunk + Embed
     await setStatus("processing");
-    await setProgress(55);
+    await setProgress(PROGRESS.CHUNK_EMBED_START);
     await log("processing", "Chunking transcript...");
 
     const chunks = createChunks(paragraphs, fullText, pod.id);
-    const totalBatches = Math.ceil(chunks.length / 20);
+    const totalBatches = Math.ceil(chunks.length / EMBEDDING_BATCH_SIZE);
     await log("processing", `Created ${chunks.length} chunks. Generating embeddings (${totalBatches} batches)...`);
 
-    const BATCH_SIZE = 20;
-    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-      if (await checkCancelled()) {
-        return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+    for (let i = 0; i < chunks.length; i += EMBEDDING_BATCH_SIZE) {
+      if (await checkCancelled()) return cancelledResponse();
 
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / EMBEDDING_BATCH_SIZE) + 1;
+      const batch = chunks.slice(i, i + EMBEDDING_BATCH_SIZE);
       const texts = batch.map((c) => c.text);
 
-      const embResponse = await fetch(
-        "https://api.openai.com/v1/embeddings",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openaiKey}`,
-            "Content-Type": "application/json",
+      let embResponse: Response;
+      try {
+        embResponse = await fetchWithTimeout(
+          "https://api.openai.com/v1/embeddings",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openaiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: EMBEDDING_MODEL,
+              input: texts,
+            }),
+            timeout: TIMEOUT_EMBEDDING,
           },
-          body: JSON.stringify({
-            model: "text-embedding-3-small",
-            input: texts,
-          }),
-        },
-      );
+        );
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          throw Object.assign(
+            new Error(`Embedding batch ${batchNum}/${totalBatches} timed out after ${TIMEOUT_EMBEDDING / 1000}s`),
+            { code: ErrorCode.EMBEDDING_TIMEOUT, httpStatus: 500 },
+          );
+        }
+        throw err;
+      }
 
       if (!embResponse.ok) {
         const errText = await embResponse.text();
-        throw new Error(`OpenAI embeddings error: ${embResponse.status} ${errText}`);
+        throw Object.assign(
+          new Error(`OpenAI embeddings error: ${embResponse.status} ${errText}`),
+          { code: ErrorCode.EMBEDDING_FAILED, httpStatus: 500 },
+        );
       }
 
       const embResult = await embResponse.json();
@@ -362,52 +573,66 @@ Deno.serve(async (req: Request) => {
 
       await supabase.from("chunks").insert(rows);
 
-      const overallPct = Math.round(55 + (batchNum / totalBatches) * 35);
+      const progressRange = PROGRESS.CHUNK_EMBED_END - PROGRESS.CHUNK_EMBED_START;
+      const overallPct = Math.round(PROGRESS.CHUNK_EMBED_START + (batchNum / totalBatches) * progressRange);
       await setProgress(overallPct);
       await log("processing", `Embedded batch ${batchNum}/${totalBatches}`);
     }
 
-    if (await checkCancelled()) {
-      return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (await checkCancelled()) return cancelledResponse();
 
     // 6. Generate insights via Groq Llama 3.3 70B
-    await setProgress(90);
-    await log("processing", "Generating insights with Llama 3.3 70B on Groq...");
+    await setProgress(PROGRESS.INSIGHTS_START);
+    await log("processing", `Generating insights with ${INSIGHTS_MODEL} on Groq...`);
 
-    const truncated = fullText.length > 80000
-      ? fullText.slice(0, 80000) + "\n[...transcript truncated...]"
+    const truncated = fullText.length > INSIGHTS_MAX_CHARS
+      ? fullText.slice(0, INSIGHTS_MAX_CHARS) + "\n[...transcript truncated...]"
       : fullText;
 
-    const insightResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          "Content-Type": "application/json",
+    let insightResponse: Response;
+    try {
+      insightResponse = await fetchWithTimeout(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: INSIGHTS_MODEL,
+            max_tokens: INSIGHTS_MAX_TOKENS,
+            response_format: { type: "json_object" },
+            messages: [
+              {
+                role: "system",
+                content: "You analyze podcast transcripts and return structured JSON.",
+              },
+              {
+                role: "user",
+                content: `Analyze this podcast transcript and return a JSON object with these fields:\n- \"summary\": A 2-3 paragraph summary of the main discussion\n- \"topics\": An array of 5-10 main topics discussed (strings)\n- \"key_points\": An array of 5-15 key takeaways or insights (strings)\n- \"entities\": An array of objects with \"name\" and \"type\" (person/company/product/concept) for notable entities mentioned\n\nTranscript:\n${truncated}`,
+              },
+            ],
+          }),
+          timeout: TIMEOUT_INSIGHTS,
         },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 4096,
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: "You analyze podcast transcripts and return structured JSON.",
-            },
-            {
-              role: "user",
-              content: `Analyze this podcast transcript and return a JSON object with these fields:\n- \"summary\": A 2-3 paragraph summary of the main discussion\n- \"topics\": An array of 5-10 main topics discussed (strings)\n- \"key_points\": An array of 5-15 key takeaways or insights (strings)\n- \"entities\": An array of objects with \"name\" and \"type\" (person/company/product/concept) for notable entities mentioned\n\nTranscript:\n${truncated}`,
-            },
-          ],
-        }),
-      },
-    );
+      );
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw Object.assign(
+          new Error(`Insights generation timed out after ${TIMEOUT_INSIGHTS / 1000}s`),
+          { code: ErrorCode.INSIGHTS_TIMEOUT, httpStatus: 500 },
+        );
+      }
+      throw err;
+    }
 
     if (!insightResponse.ok) {
       const errText = await insightResponse.text();
-      throw new Error(`Groq insights error: ${insightResponse.status} ${errText}`);
+      throw Object.assign(
+        new Error(`Groq insights error: ${insightResponse.status} ${errText}`),
+        { code: ErrorCode.INSIGHTS_FAILED, httpStatus: 500 },
+      );
     }
 
     const insightResult = await insightResponse.json();
@@ -428,16 +653,14 @@ Deno.serve(async (req: Request) => {
       entities: insights.entities || [],
     });
 
-    await setProgress(100);
+    await setProgress(PROGRESS.DONE);
     await log("processing", "Insights generated successfully.");
 
-    if (await checkCancelled()) {
-      return new Response(JSON.stringify({ cancelled: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    if (await checkCancelled()) return cancelledResponse();
 
     // 7. Done!
     await setStatus("ready");
-    await setProgress(100);
+    await setProgress(PROGRESS.DONE);
     await log("ready", `Processing complete! ${chunks.length} chunks, ${wordCount.toLocaleString()} words.`);
 
     // Clean up audio from storage (only if we uploaded audio)
@@ -450,7 +673,11 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("Process error:", err);
+    console.error(`[${podcastId || "unknown"}] Process error:`, err);
+
+    const error = err as Error & { code?: string; httpStatus?: number };
+    const httpStatus = error.httpStatus || 500;
+    const errorCode = error.code || ErrorCode.INTERNAL_ERROR;
 
     try {
       if (podcastId) {
@@ -468,24 +695,18 @@ Deno.serve(async (req: Request) => {
         if (current?.[0]?.status !== "cancelled") {
           await supabase
             .from("podcasts")
-            .update({ status: "error", error_message: (err as Error).message, progress: 0 })
+            .update({ status: "error", error_message: error.message, progress: 0 })
             .eq("id", podcastId);
           await supabase.from("processing_logs").insert({
             podcast_id: podcastId,
             step: "error",
-            message: (err as Error).message,
+            message: `[${errorCode}] ${error.message}`,
           });
         }
       }
     } catch { /* best effort */ }
 
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return errorResponse(error.message, errorCode, httpStatus);
   }
 });
 
@@ -509,13 +730,11 @@ function createChunks(
   fullText: string,
   podcastId: string,
 ): ChunkRow[] {
-  const MAX_TOKENS = 500;
-  const TARGET_TOKENS = 300;
   const chunks: ChunkRow[] = [];
 
   if (!paragraphs || paragraphs.length === 0) {
     const charsPerToken = 4;
-    const chunkSize = TARGET_TOKENS * charsPerToken;
+    const chunkSize = CHUNK_TARGET_TOKENS * charsPerToken;
     for (let i = 0; i < fullText.length; i += chunkSize) {
       chunks.push({
         podcast_id: podcastId,
@@ -535,7 +754,7 @@ function createChunks(
     const paraText = para.sentences?.map((s) => s.text).join(" ") || "";
     const estimatedTokens = (currentText + " " + paraText).length / 4;
 
-    if (currentText && estimatedTokens > MAX_TOKENS) {
+    if (currentText && estimatedTokens > CHUNK_MAX_TOKENS) {
       chunks.push({
         podcast_id: podcastId,
         text: currentText.trim(),

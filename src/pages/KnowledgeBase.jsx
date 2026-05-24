@@ -106,24 +106,16 @@ export default function KnowledgeBase() {
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="serif text-[32px] font-medium tracking-tight w-full bg-transparent outline-none"
-                    style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--r-sm)',
-                      padding: '2px 8px',
-                      color: 'var(--text)',
-                    }}
+                    className="serif text-[32px] font-medium tracking-tight w-full bg-transparent outline-none border border-[var(--border)] rounded-[var(--r-sm)] px-2 py-[2px] text-[var(--text)]"
                     autoFocus
                     onBlur={handleRename}
                   />
                 </form>
               ) : (
                 <h1
-                  className="serif text-[32px] font-medium tracking-tight m-0 cursor-pointer transition-colors truncate"
+                  className="serif text-[32px] font-medium tracking-tight m-0 cursor-pointer transition-colors truncate hover:text-[var(--accent)]"
                   onClick={() => setEditing(true)}
                   title="Click to rename"
-                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text)' }}
                 >
                   {kb.name}
                 </h1>
@@ -131,13 +123,7 @@ export default function KnowledgeBase() {
             </div>
             <button
               onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 px-3.5 py-2 text-[13px] font-semibold shrink-0"
-              style={{
-                background: 'var(--accent)',
-                color: 'var(--accent-fg)',
-                border: '1px solid color-mix(in oklab, var(--accent), white 10%)',
-                borderRadius: 'var(--r-md)',
-              }}
+              className="flex items-center gap-2 px-3.5 py-2 text-[13px] font-semibold shrink-0 bg-[var(--accent)] text-[var(--accent-fg)] border border-[color-mix(in_oklab,var(--accent),white_10%)] rounded-[var(--r-md)]"
             >
               <Icons.Plus size={14} />
               Add podcast
@@ -162,14 +148,7 @@ export default function KnowledgeBase() {
               action={
                 <button
                   onClick={() => setShowAdd(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim"
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid transparent',
-                    borderRadius: 'var(--r-md)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-transparent rounded-[var(--r-md)] hover:bg-[var(--surface)]"
                 >
                   <Icons.Filter size={13} />
                   Filter
@@ -179,19 +158,13 @@ export default function KnowledgeBase() {
 
             {podcasts.length === 0 ? (
               <div
-                className="text-center py-16"
-                style={{ border: '1px dashed var(--border)', borderRadius: 'var(--r-lg)' }}
+                className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
               >
                 <p className="mute mb-1">No podcasts yet</p>
                 <p className="text-sm mute">Search for a podcast to get started.</p>
                 <button
                   onClick={() => setShowAdd(true)}
-                  className="mt-4 px-4 py-2 text-sm font-semibold"
-                  style={{
-                    background: 'var(--accent)',
-                    color: 'var(--accent-fg)',
-                    borderRadius: 'var(--r-md)',
-                  }}
+                  className="mt-4 px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
                 >
                   Add your first podcast
                 </button>
@@ -214,11 +187,7 @@ export default function KnowledgeBase() {
 
       {/* Co-present chat column — hidden on mobile */}
       <div
-        className="hidden lg:flex w-[400px] xl:w-[440px] shrink-0 flex-col h-full"
-        style={{
-          borderLeft: '1px solid var(--border)',
-          background: 'var(--bg-2)',
-        }}
+        className="hidden lg:flex w-[400px] xl:w-[440px] shrink-0 flex-col h-full border-l border-[var(--border)] bg-[var(--bg-2)]"
       >
         <ChatPanel knowledgeBaseId={id} kbName={kb.name} podcastCount={podcasts.length} />
       </div>
@@ -239,26 +208,17 @@ function PodcastRow({ podcast: p, onClick, onDelete }) {
   return (
     <button
       onClick={onClick}
-      className="flex gap-3 p-3 text-left items-center transition-colors group"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-md)',
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 60%)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+      className="flex gap-3 p-3 text-left items-center transition-colors group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
     >
       {p.thumbnail_url ? (
         <img
           src={p.thumbnail_url}
           alt=""
-          className="w-[52px] h-[52px] object-cover shrink-0"
-          style={{ borderRadius: 'var(--r-sm)' }}
+          className="w-[52px] h-[52px] object-cover shrink-0 rounded-[var(--r-sm)]"
         />
       ) : (
         <div
-          className="w-[52px] h-[52px] shrink-0 grid place-items-center mute"
-          style={{ background: 'var(--bg-2)', borderRadius: 'var(--r-sm)' }}
+          className="w-[52px] h-[52px] shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
         >
           <Icons.Headphones size={20} />
         </div>
@@ -274,15 +234,14 @@ function PodcastRow({ podcast: p, onClick, onDelete }) {
         {isProcessing && (
           <div className="mt-2 flex items-center gap-2.5">
             <div
-              className="flex-1 h-[3px] overflow-hidden"
-              style={{ background: 'var(--bg-2)', borderRadius: 2 }}
+              className="flex-1 h-[3px] overflow-hidden bg-[var(--bg-2)] rounded-[2px]"
             >
               <div
-                className="h-full transition-all duration-500"
-                style={{ width: `${p.progress || 0}%`, background: 'var(--accent)' }}
+                className="h-full transition-all duration-500 bg-[var(--accent)]"
+                style={{ width: `${p.progress || 0}%` }}
               />
             </div>
-            <span className="text-[10px] mono" style={{ color: 'var(--accent)' }}>
+            <span className="text-[10px] mono text-[var(--accent)]">
               {Math.round(p.progress || 0)}%
             </span>
           </div>

@@ -20,6 +20,19 @@ export function extractYouTubeVideoId(url) {
 }
 
 /**
+ * Validate that a string looks like a usable URL.
+ * Accepts http(s) URLs only.
+ */
+function isValidUrl(str) {
+  try {
+    const u = new URL(str)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/**
  * List all podcasts across all knowledge bases (deduplicated).
  * Used for the standalone Podcasts section.
  */
@@ -29,7 +42,7 @@ export async function listAllPodcasts() {
     .select('*')
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to load podcasts: ${error.message}`)
   return data
 }
 
@@ -38,6 +51,9 @@ export async function listAllPodcasts() {
  * Used from the standalone podcast view to link to a KB.
  */
 export async function addPodcastToKB(knowledgeBaseId, podcastId) {
+  if (!knowledgeBaseId) throw new Error('Failed to link podcast: knowledge base ID is required')
+  if (!podcastId) throw new Error('Failed to link podcast: podcast ID is required')
+
   const { error } = await supabase
     .from('knowledge_base_podcasts')
     .insert({
@@ -49,7 +65,7 @@ export async function addPodcastToKB(knowledgeBaseId, podcastId) {
     if (error.code === '23505') {
       throw new Error('This podcast is already in that knowledge base')
     }
-    throw error
+    throw new Error(`Failed to link podcast to knowledge base: ${error.message}`)
   }
 }
 
@@ -57,12 +73,14 @@ export async function addPodcastToKB(knowledgeBaseId, podcastId) {
  * Get which knowledge bases a podcast belongs to.
  */
 export async function getPodcastKBs(podcastId) {
+  if (!podcastId) throw new Error('Failed to load podcast knowledge bases: podcast ID is required')
+
   const { data, error } = await supabase
     .from('knowledge_base_podcasts')
     .select('knowledge_base_id, knowledge_bases(id, name)')
     .eq('podcast_id', podcastId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to load podcast knowledge bases: ${error.message}`)
   return data.map((row) => row.knowledge_bases)
 }
 
@@ -71,13 +89,15 @@ export async function getPodcastKBs(podcastId) {
  * Queries the junction table and returns the podcast data.
  */
 export async function listPodcasts(knowledgeBaseId) {
+  if (!knowledgeBaseId) throw new Error('Failed to list podcasts: knowledge base ID is required')
+
   const { data, error } = await supabase
     .from('knowledge_base_podcasts')
     .select('podcast_id, created_at, podcasts(*)')
     .eq('knowledge_base_id', knowledgeBaseId)
     .order('created_at', { ascending: false })
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to list podcasts for knowledge base: ${error.message}`)
   return data.map((row) => row.podcasts)
 }
 
@@ -87,8 +107,8 @@ export async function listPodcasts(knowledgeBaseId) {
  * Dedup logic:
  * 1. Extract youtube_video_id from the URL
  * 2. Check if a podcast with that video ID already exists
- * 3. If yes and knowledgeBaseId provided → just link it to this KB
- * 4. If no → create the podcast row, optionally link it, and return it
+ * 3. If yes and knowledgeBaseId provided -> just link it to this KB
+ * 4. If no -> create the podcast row, optionally link it, and return it
  *
  * knowledgeBaseId can be null (standalone podcast add from Podcasts tab).
  *
@@ -96,15 +116,20 @@ export async function listPodcasts(knowledgeBaseId) {
  * to kick off the processing pipeline or not.
  */
 export async function addPodcast(knowledgeBaseId, url) {
+  if (!url || !url.trim()) throw new Error('Failed to add podcast: URL is required')
+  if (!isValidUrl(url.trim())) throw new Error(`Failed to add podcast: invalid URL "${url}"`)
+
   const youtubeVideoId = extractYouTubeVideoId(url)
 
   // Check for an existing podcast with the same video ID
   if (youtubeVideoId) {
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from('podcasts')
       .select('*')
       .eq('youtube_video_id', youtubeVideoId)
       .maybeSingle()
+
+    if (lookupError) throw new Error(`Failed to check for existing podcast: ${lookupError.message}`)
 
     if (existing) {
       // Podcast content already exists
@@ -121,10 +146,10 @@ export async function addPodcast(knowledgeBaseId, url) {
           if (linkError.code === '23505') {
             throw new Error('This podcast is already in this knowledge base')
           }
-          throw linkError
+          throw new Error(`Failed to link podcast to knowledge base: ${linkError.message}`)
         }
       } else {
-        // Standalone add — podcast already exists, just return it
+        // Standalone add -- podcast already exists, just return it
         throw new Error('This podcast has already been added')
       }
 
@@ -132,7 +157,7 @@ export async function addPodcast(knowledgeBaseId, url) {
     }
   }
 
-  // New podcast — fetch metadata and create it
+  // New podcast -- fetch metadata and create it
   let title = null
   let channel = null
   let thumbnailUrl = null
@@ -147,10 +172,10 @@ export async function addPodcast(knowledgeBaseId, url) {
       thumbnailUrl = meta.thumbnail_url
     }
   } catch {
-    // Metadata fetch failed — proceed without it
+    // Metadata fetch failed -- proceed without it
   }
 
-  const { data: podcast, error } = await supabase
+  const { data, error } = await supabase
     .from('podcasts')
     .insert({
       url,
@@ -161,9 +186,11 @@ export async function addPodcast(knowledgeBaseId, url) {
       status: 'pending',
     })
     .select()
-    .single()
+    .limit(1)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to add podcast: ${error.message}`)
+  if (!data || data.length === 0) throw new Error('Failed to add podcast: no data returned')
+  const podcast = data[0]
 
   // Link to the knowledge base if one was provided
   if (knowledgeBaseId) {
@@ -174,7 +201,7 @@ export async function addPodcast(knowledgeBaseId, url) {
         podcast_id: podcast.id,
       })
 
-    if (linkError) throw linkError
+    if (linkError) throw new Error(`Failed to link podcast to knowledge base: ${linkError.message}`)
   }
 
   return { podcast, alreadyProcessed: false }
@@ -190,13 +217,17 @@ export async function addPodcast(knowledgeBaseId, url) {
  * Returns { podcast, alreadyProcessed }
  */
 export async function addPodcastFromIndex(knowledgeBaseId, episode) {
+  if (!episode) throw new Error('Failed to add episode: episode data is required')
+
   // Check for existing by Podcast Index episode ID
   if (episode.id) {
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from('podcasts')
       .select('*')
       .eq('episode_index_id', episode.id)
       .maybeSingle()
+
+    if (lookupError) throw new Error(`Failed to check for existing episode: ${lookupError.message}`)
 
     if (existing) {
       if (knowledgeBaseId) {
@@ -211,7 +242,7 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
           if (linkError.code === '23505') {
             throw new Error('This episode is already in this knowledge base')
           }
-          throw linkError
+          throw new Error(`Failed to link episode to knowledge base: ${linkError.message}`)
         }
       } else {
         throw new Error('This episode has already been added')
@@ -235,8 +266,8 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
     }
   }
 
-  // New episode — create podcast row with Podcast Index metadata
-  const { data: podcast, error } = await supabase
+  // New episode -- create podcast row with Podcast Index metadata
+  const { data, error } = await supabase
     .from('podcasts')
     .insert({
       title: episode.title,
@@ -253,9 +284,11 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
       status: 'pending',
     })
     .select()
-    .single()
+    .limit(1)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to add episode: ${error.message}`)
+  if (!data || data.length === 0) throw new Error('Failed to add episode: no data returned')
+  const podcast = data[0]
 
   // Link to KB if provided
   if (knowledgeBaseId) {
@@ -266,7 +299,7 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
         podcast_id: podcast.id,
       })
 
-    if (linkError) throw linkError
+    if (linkError) throw new Error(`Failed to link episode to knowledge base: ${linkError.message}`)
   }
 
   return { podcast, alreadyProcessed: false }
@@ -279,6 +312,9 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
  * the podcast row itself is deleted (cascading to transcripts, chunks, insights).
  */
 export async function removePodcastFromKB(knowledgeBaseId, podcastId) {
+  if (!knowledgeBaseId) throw new Error('Failed to remove podcast: knowledge base ID is required')
+  if (!podcastId) throw new Error('Failed to remove podcast: podcast ID is required')
+
   // Remove the junction row
   const { error } = await supabase
     .from('knowledge_base_podcasts')
@@ -286,16 +322,23 @@ export async function removePodcastFromKB(knowledgeBaseId, podcastId) {
     .eq('knowledge_base_id', knowledgeBaseId)
     .eq('podcast_id', podcastId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to remove podcast from knowledge base: ${error.message}`)
 
   // Check if any other KBs still reference this podcast
-  const { data: remaining } = await supabase
+  const { data: remaining, error: checkError } = await supabase
     .from('knowledge_base_podcasts')
     .select('id')
     .eq('podcast_id', podcastId)
 
+  if (checkError) throw new Error(`Failed to check podcast references: ${checkError.message}`)
+
   // If orphaned, delete the podcast entirely
   if (!remaining || remaining.length === 0) {
-    await supabase.from('podcasts').delete().eq('id', podcastId)
+    const { error: deleteError } = await supabase
+      .from('podcasts')
+      .delete()
+      .eq('id', podcastId)
+
+    if (deleteError) throw new Error(`Failed to delete orphaned podcast: ${deleteError.message}`)
   }
 }

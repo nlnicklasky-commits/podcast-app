@@ -81,19 +81,21 @@ export default function ProcessingProgress({ status = 'pending', compact = false
     return (
       <div className="mt-2">
         <div
-          className="h-[3px] overflow-hidden"
-          style={{ background: 'var(--surface)', borderRadius: 2 }}
+          className="h-[3px] overflow-hidden bg-[var(--surface)] rounded-[2px]"
         >
           <div
-            className="h-full transition-all duration-700 ease-out"
-            style={{
-              width: `${pct}%`,
-              background: isError ? 'var(--error)' : isDone ? 'oklch(0.72 0.14 150)' : 'var(--accent)',
-            }}
+            className={`h-full transition-all duration-700 ease-out ${
+              isError
+                ? 'bg-[var(--error)]'
+                : isDone
+                  ? 'bg-[oklch(0.72_0.14_150)]'
+                  : 'bg-[var(--accent)]'
+            }`}
+            style={{ width: `${pct}%` }}
           />
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[11px]" style={{ color: isError ? 'var(--error)' : 'var(--text-mute)' }}>
+          <span className={`text-[11px] ${isError ? 'text-[var(--error)]' : 'text-[var(--text-mute)]'}`}>
             {STATUS_MESSAGES[status]}
           </span>
           <div className="flex items-center gap-2">
@@ -103,8 +105,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
               </span>
             )}
             <span
-              className="text-[11px] mono tabular-nums"
-              style={{ color: isDone ? 'oklch(0.72 0.14 150)' : 'var(--accent)' }}
+              className={`text-[11px] mono tabular-nums ${isDone ? 'text-[oklch(0.72_0.14_150)]' : 'text-[var(--accent)]'}`}
             >
               {pct}%
             </span>
@@ -126,20 +127,19 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             <div key={step.id} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div
-                  className="w-5 h-5 sm:w-6 sm:h-6 rounded-full grid place-items-center text-[10px] sm:text-[11px] font-medium transition-all duration-500"
-                  style={{
-                    background: isCompleted
-                      ? 'oklch(0.72 0.14 150)'
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full grid place-items-center text-[10px] sm:text-[11px] font-medium transition-all duration-500 ${
+                    isCompleted
+                      ? 'bg-[oklch(0.72_0.14_150)]'
                       : isCurrent
-                        ? 'var(--accent)'
+                        ? 'bg-[var(--accent)]'
                         : isError && currentIdx === i
-                          ? 'var(--error)'
-                          : 'var(--surface)',
-                    color: isCompleted || isCurrent || (isError && currentIdx === i)
-                      ? 'oklch(0.18 0.02 50)'
-                      : 'var(--text-mute)',
-                    boxShadow: isCurrent ? '0 0 0 3px var(--accent-soft)' : 'none',
-                  }}
+                          ? 'bg-[var(--error)]'
+                          : 'bg-[var(--surface)]'
+                  } ${
+                    isCompleted || isCurrent || (isError && currentIdx === i)
+                      ? 'text-[oklch(0.18_0.02_50)]'
+                      : 'text-[var(--text-mute)]'
+                  } ${isCurrent ? 'shadow-[0_0_0_3px_var(--accent-soft)]' : ''}`}
                 >
                   {isCompleted ? (
                     <Icons.Check size={12} />
@@ -148,15 +148,13 @@ export default function ProcessingProgress({ status = 'pending', compact = false
                   )}
                 </div>
                 <span
-                  className="text-[10px] sm:text-[11px] mt-1 whitespace-nowrap mono"
-                  style={{
-                    color: isCompleted
-                      ? 'oklch(0.72 0.14 150)'
+                  className={`text-[10px] sm:text-[11px] mt-1 whitespace-nowrap mono ${
+                    isCompleted
+                      ? 'text-[oklch(0.72_0.14_150)]'
                       : isCurrent
-                        ? 'var(--accent)'
-                        : 'var(--text-mute)',
-                    fontWeight: isCurrent ? 500 : 400,
-                  }}
+                        ? 'text-[var(--accent)]'
+                        : 'text-[var(--text-mute)]'
+                  } ${isCurrent ? 'font-medium' : 'font-normal'}`}
                 >
                   {step.label}
                 </span>
@@ -164,16 +162,16 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
               {i < STEPS.length - 1 && (
                 <div
-                  className="flex-1 h-[2px] mx-1 sm:mx-2 mt-[-1rem] overflow-hidden"
-                  style={{ background: 'var(--surface)', borderRadius: 2 }}
+                  className="flex-1 h-[2px] mx-1 sm:mx-2 mt-[-1rem] overflow-hidden bg-[var(--surface)] rounded-[2px]"
                 >
                   <div
-                    className="h-full transition-all duration-700 ease-out"
-                    style={{
-                      width: isCompleted ? '100%' : isCurrent ? '50%' : '0%',
-                      background: isCompleted ? 'oklch(0.72 0.14 150)' : 'var(--accent)',
-                      opacity: isCurrent ? 0.7 : 1,
-                    }}
+                    className={`h-full transition-all duration-700 ease-out ${
+                      isCompleted
+                        ? 'w-full bg-[oklch(0.72_0.14_150)]'
+                        : isCurrent
+                          ? 'w-1/2 bg-[var(--accent)] opacity-70'
+                          : 'w-0 bg-[var(--accent)]'
+                    }`}
                   />
                 </div>
               )}
@@ -184,32 +182,34 @@ export default function ProcessingProgress({ status = 'pending', compact = false
 
       {/* Progress bar */}
       <div
-        className="h-[4px] sm:h-[5px] overflow-hidden"
-        style={{ background: 'var(--surface)', borderRadius: 3 }}
+        className="h-[4px] sm:h-[5px] overflow-hidden bg-[var(--surface)] rounded-[3px]"
       >
         <div
-          className={`h-full transition-all duration-700 ease-out ${isActive && status === 'transcribing' ? 'animate-progress-shimmer' : ''}`}
-          style={{
-            width: `${pct}%`,
-            background: isError
-              ? 'var(--error)'
+          className={`h-full transition-all duration-700 ease-out rounded-[3px] ${
+            isActive && status === 'transcribing' ? 'animate-progress-shimmer' : ''
+          } ${
+            isError
+              ? 'bg-[var(--error)]'
               : isDone
-                ? 'oklch(0.72 0.14 150)'
-                : 'var(--accent)',
-            borderRadius: 3,
-          }}
+                ? 'bg-[oklch(0.72_0.14_150)]'
+                : 'bg-[var(--accent)]'
+          }`}
+          style={{ width: `${pct}%` }}
         />
       </div>
 
       {/* Status message + timer + percentage */}
       <div className="flex items-center justify-between mt-2">
-        <span className="text-[13px] flex items-center gap-2" style={{
-          color: isError ? 'var(--error)' : isDone ? 'oklch(0.72 0.14 150)' : 'var(--text-dim)',
-        }}>
+        <span className={`text-[13px] flex items-center gap-2 ${
+          isError
+            ? 'text-[var(--error)]'
+            : isDone
+              ? 'text-[oklch(0.72_0.14_150)]'
+              : 'text-[var(--text-dim)]'
+        }`}>
           {isActive && (
             <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: 'var(--accent)', animation: 'pulse-dot 1.2s ease-in-out infinite' }}
+              className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-[pulse-dot_1.2s_ease-in-out_infinite]"
             />
           )}
           {STATUS_MESSAGES[status]}
@@ -221,8 +221,7 @@ export default function ProcessingProgress({ status = 'pending', compact = false
             </span>
           )}
           <span
-            className="text-[12px] mono tabular-nums"
-            style={{ color: isDone ? 'oklch(0.72 0.14 150)' : 'var(--text-dim)' }}
+            className={`text-[12px] mono tabular-nums ${isDone ? 'text-[oklch(0.72_0.14_150)]' : 'text-[var(--text-dim)]'}`}
           >
             {pct}%
           </span>

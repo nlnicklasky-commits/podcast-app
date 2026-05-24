@@ -71,9 +71,9 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   return (
     <>
       {/* Header */}
-      <div className="px-[18px] pt-4 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+      <div className="px-[18px] pt-4 pb-3 border-b border-[var(--border)]">
         <div className="flex items-center gap-2 mb-1.5">
-          <Icons.Sparkle size={14} style={{ color: 'var(--accent)' }} />
+          <Icons.Sparkle size={14} className="text-[var(--accent)]" />
           <span className="text-[11px] mono mute uppercase tracking-[0.1em]">
             Ask {kbName}
           </span>
@@ -98,21 +98,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left px-3 py-2.5 text-[13px] serif italic transition-colors"
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-dim)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 50%)'
-                    e.currentTarget.style.color = 'var(--text)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                    e.currentTarget.style.color = 'var(--text-dim)'
-                  }}
+                  className="text-left px-3 py-2.5 text-[13px] serif italic transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:border-[color-mix(in_oklab,var(--accent),transparent_50%)] hover:text-[var(--text)]"
                 >
                   &ldquo;{s}&rdquo;
                 </button>
@@ -131,22 +117,16 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
 
       {/* Error */}
       {error && (
-        <div className="px-[18px] py-2 text-[12px]" style={{ color: 'var(--error)', background: 'color-mix(in oklab, var(--error), transparent 90%)' }}>
+        <div className="px-[18px] py-2 text-[12px] text-[var(--error)] bg-[color-mix(in_oklab,var(--error),transparent_90%)]">
           {error}
         </div>
       )}
 
       {/* Input */}
-      <div className="p-3.5" style={{ borderTop: '1px solid var(--border)' }}>
+      <div className="p-3.5 border-t border-[var(--border)]">
         <form
           onSubmit={(e) => { e.preventDefault(); send(input) }}
-          className="flex items-end gap-2"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-md)',
-            padding: '8px 10px',
-          }}
+          className="flex items-end gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] px-2.5 py-2"
         >
           <textarea
             value={input}
@@ -156,18 +136,17 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
             }}
             placeholder="Ask about these podcasts..."
             rows={1}
-            className="flex-1 bg-transparent border-none outline-none resize-none text-[13.5px] leading-relaxed"
-            style={{ maxHeight: 120, color: 'var(--text)' }}
+            className="flex-1 bg-transparent border-none outline-none resize-none text-[13.5px] leading-relaxed max-h-[120px] text-[var(--text)]"
             disabled={loading}
           />
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="w-[30px] h-[30px] rounded-[7px] grid place-items-center transition-colors shrink-0"
-            style={{
-              background: input.trim() ? 'var(--accent)' : 'var(--surface-2)',
-              color: input.trim() ? 'var(--accent-fg)' : 'var(--text-mute)',
-            }}
+            className={`w-[30px] h-[30px] rounded-[7px] grid place-items-center transition-colors shrink-0 ${
+              input.trim()
+                ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                : 'bg-[var(--surface-2)] text-[var(--text-mute)]'
+            }`}
           >
             <Icons.Send size={14} />
           </button>
@@ -186,13 +165,7 @@ function MessageBubble({ msg }) {
     return (
       <div className="flex justify-end">
         <div
-          className="max-w-[85%] px-3.5 py-2.5 text-[13.5px] leading-relaxed"
-          style={{
-            background: 'var(--accent-faint)',
-            border: '1px solid var(--accent-soft)',
-            color: 'var(--text)',
-            borderRadius: 'var(--r-md)',
-          }}
+          className="max-w-[85%] px-3.5 py-2.5 text-[13.5px] leading-relaxed bg-[var(--accent-faint)] border border-[var(--accent-soft)] text-[var(--text)] rounded-[var(--r-md)]"
         >
           {msg.content}
         </div>
@@ -203,17 +176,16 @@ function MessageBubble({ msg }) {
   const parts = msg.content.split(/(\[\d+\]|\*\*[^*]+\*\*)/g)
 
   return (
-    <div className="fade-in text-[14px] leading-[1.6]" style={{ color: 'var(--text)' }}>
+    <div className="fade-in text-[14px] leading-[1.6] text-[var(--text)]">
       <div className="flex items-center gap-1.5 mb-2">
         <div
-          className="w-[18px] h-[18px] rounded grid place-items-center"
-          style={{ background: 'var(--accent)' }}
+          className="w-[18px] h-[18px] rounded grid place-items-center bg-[var(--accent)]"
         >
-          <Icons.Sparkle size={11} style={{ color: 'var(--accent-fg)' }} />
+          <Icons.Sparkle size={11} className="text-[var(--accent-fg)]" />
         </div>
         <span className="text-[11px] mono mute">PodBrain</span>
       </div>
-      <div style={{ whiteSpace: 'pre-wrap' }}>
+      <div className="whitespace-pre-wrap">
         {parts.map((part, i) => {
           const bold = part.match(/^\*\*(.+)\*\*$/)
           if (bold) return <strong key={i} className="font-semibold">{bold[1]}</strong>
@@ -224,12 +196,7 @@ function MessageBubble({ msg }) {
             return (
               <span
                 key={i}
-                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-[5px] rounded text-[10px] mono mx-0.5 align-baseline"
-                style={{
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                  border: '1px solid var(--accent-soft)',
-                }}
+                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-[5px] rounded text-[10px] mono mx-0.5 align-baseline bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent-soft)]"
                 title={src ? `${src.podcast_title} @ ${formatTimestamp(src.start_time)}` : ''}
               >
                 {cit[1]}
@@ -245,15 +212,9 @@ function MessageBubble({ msg }) {
           {msg.sources.slice(0, 5).map((s, j) => (
             <div
               key={j}
-              className="flex items-center gap-2 px-2.5 py-1.5 text-[11.5px] w-full"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--r-sm)',
-                color: 'var(--text-dim)',
-              }}
+              className="flex items-center gap-2 px-2.5 py-1.5 text-[11.5px] w-full bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] text-[var(--text-dim)]"
             >
-              <span className="mono text-[10px]" style={{ color: 'var(--accent)' }}>[{j + 1}]</span>
+              <span className="mono text-[10px] text-[var(--accent)]">[{j + 1}]</span>
               <span className="flex-1 truncate">{s.podcast_title}</span>
               <span className="mono text-[10px] mute">{formatTimestamp(s.start_time)}</span>
             </div>
@@ -271,9 +232,8 @@ function ThinkingDots() {
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="w-[5px] h-[5px] rounded-full"
+            className="w-[5px] h-[5px] rounded-full bg-[var(--accent)]"
             style={{
-              background: 'var(--accent)',
               animation: `pulse-dot 1.2s ease-in-out ${i * 0.18}s infinite`,
             }}
           />

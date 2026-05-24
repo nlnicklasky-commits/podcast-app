@@ -145,13 +145,11 @@ export default function PodcastDetail() {
             <img
               src={podcast.thumbnail_url}
               alt=""
-              className="w-[88px] h-[88px] object-cover shrink-0"
-              style={{ borderRadius: 'var(--r-lg)' }}
+              className="w-[88px] h-[88px] object-cover shrink-0 rounded-[var(--r-lg)]"
             />
           ) : (
             <div
-              className="w-[88px] h-[88px] shrink-0 grid place-items-center mute"
-              style={{ background: 'var(--surface)', borderRadius: 'var(--r-lg)' }}
+              className="w-[88px] h-[88px] shrink-0 grid place-items-center mute bg-[var(--surface)] rounded-[var(--r-lg)]"
             >
               <Icons.Headphones size={32} />
             </div>
@@ -175,12 +173,7 @@ export default function PodcastDetail() {
                 <button
                   onClick={handleProcess}
                   disabled={processing}
-                  className="text-[13px] px-3.5 py-1.5 font-semibold transition-colors disabled:opacity-50"
-                  style={{
-                    background: podcast.status === 'error' ? 'var(--error)' : 'var(--accent)',
-                    color: 'var(--accent-fg)',
-                    borderRadius: 'var(--r-md)',
-                  }}
+                  className={`text-[13px] px-3.5 py-1.5 font-semibold transition-colors disabled:opacity-50 text-[var(--accent-fg)] rounded-[var(--r-md)] ${podcast.status === 'error' ? 'bg-[var(--error)]' : 'bg-[var(--accent)]'}`}
                 >
                   {processing ? 'Starting...' : podcast.status === 'error' ? 'Retry' : 'Process'}
                 </button>
@@ -188,26 +181,14 @@ export default function PodcastDetail() {
               {isActive && (
                 <button
                   onClick={handleCancel}
-                  className="text-[13px] px-3.5 py-1.5 transition-colors"
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-dim)',
-                  }}
+                  className="text-[13px] px-3.5 py-1.5 transition-colors bg-transparent border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)]"
                 >
                   Cancel
                 </button>
               )}
               <button
                 onClick={() => setShowAddToKB(true)}
-                className="text-[13px] px-3 py-1.5 transition-colors"
-                style={{
-                  background: 'transparent',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--r-md)',
-                  color: 'var(--text-dim)',
-                }}
+                className="text-[13px] px-3 py-1.5 transition-colors bg-transparent border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)]"
               >
                 + Add to KB
               </button>
@@ -216,8 +197,7 @@ export default function PodcastDetail() {
                   href={podcast.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[12px] mono transition-colors"
-                  style={{ color: 'var(--accent)' }}
+                  className="text-[12px] mono transition-colors text-[var(--accent)]"
                 >
                   {podcast.source === 'podcast_index' ? 'Open Episode →' : 'Open Source →'}
                 </a>
@@ -237,7 +217,7 @@ export default function PodcastDetail() {
             )}
 
             {podcast.error_message && podcast.status === 'error' && (
-              <p className="text-[12px] mt-2" style={{ color: 'var(--error)' }}>
+              <p className="text-[12px] mt-2 text-[var(--error)]">
                 {podcast.error_message}
               </p>
             )}
@@ -246,12 +226,7 @@ export default function PodcastDetail() {
 
         {/* Processing progress */}
         <div
-          className="p-3 sm:p-4 mb-4 sm:mb-6"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-lg)',
-          }}
+          className="p-3 sm:p-4 mb-4 sm:mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
         >
           <ProcessingProgress
             status={podcast.status}
@@ -262,17 +237,12 @@ export default function PodcastDetail() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-[22px]" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flex gap-1 mb-[22px] border-b border-[var(--border)]">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors"
-              style={{
-                color: activeTab === t.id ? 'var(--text)' : 'var(--text-mute)',
-                borderBottom: activeTab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-                fontWeight: activeTab === t.id ? 500 : 400,
-              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors border-b-2 ${activeTab === t.id ? 'text-[var(--text)] border-[var(--accent)] font-medium' : 'text-[var(--text-mute)] border-transparent font-normal'}`}
             >
               {t.icon}
               {t.label}
@@ -317,15 +287,10 @@ function TranscriptView({ transcript }) {
 
   return (
     <div
-      className="p-4 sm:p-5"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-lg)',
-      }}
+      className="p-4 sm:p-5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
     >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[11px] mono uppercase tracking-[0.08em]" style={{ color: 'var(--accent)' }}>
+        <h3 className="text-[11px] mono uppercase tracking-[0.08em] text-[var(--accent)]">
           Full Transcript
         </h3>
         {transcript.word_count && (
@@ -340,12 +305,10 @@ function TranscriptView({ transcript }) {
           {transcript.segments.map((seg, i) => (
             <div
               key={i}
-              className="grid gap-4"
-              style={{ gridTemplateColumns: '70px 1fr' }}
+              className="grid gap-4 grid-cols-[70px_1fr]"
             >
               <span
-                className="mono text-[11px] text-right pt-[3px]"
-                style={{ color: 'var(--accent)' }}
+                className="mono text-[11px] text-right pt-[3px] text-[var(--accent)]"
               >
                 {formatTimestamp(seg.start)}
               </span>

@@ -58,30 +58,18 @@ export function SectionHeader({ title, subtitle, action }) {
   )
 }
 
+const TAG_CLASSES = {
+  default: 'bg-[var(--surface)] text-[var(--text-dim)] border border-[var(--border)]',
+  accent: 'bg-[var(--accent-faint)] text-[var(--accent)] border border-[var(--accent-soft)]',
+  success: 'bg-[color-mix(in_oklab,var(--success),transparent_80%)] text-[var(--success)] border border-[color-mix(in_oklab,var(--success),transparent_70%)]',
+}
+
 export function Tag({ children, variant = 'default', icon, onClick }) {
-  const variants = {
-    default: {
-      background: 'var(--surface)',
-      color: 'var(--text-dim)',
-      border: '1px solid var(--border)',
-    },
-    accent: {
-      background: 'var(--accent-faint)',
-      color: 'var(--accent)',
-      border: '1px solid var(--accent-soft)',
-    },
-    success: {
-      background: 'color-mix(in oklab, var(--success), transparent 80%)',
-      color: 'var(--success)',
-      border: '1px solid color-mix(in oklab, var(--success), transparent 70%)',
-    },
-  }
-  const v = variants[variant] || variants.default
+  const v = TAG_CLASSES[variant] || TAG_CLASSES.default
   return (
     <span
       onClick={onClick}
-      className="inline-flex items-center gap-1 px-2 rounded-full text-[11px] mono lowercase"
-      style={{ ...v, cursor: onClick ? 'pointer' : 'default', paddingTop: 2, paddingBottom: 2 }}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] mono lowercase ${v} ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
     >
       {icon}
       {children}

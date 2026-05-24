@@ -75,24 +75,14 @@ export default function Layout({ children }) {
           fixed lg:relative z-40 lg:z-auto
           w-[248px] shrink-0 flex flex-col gap-1.5
           transition-transform lg:translate-x-0
+          border-r border-[var(--border)] bg-[var(--bg)] px-3 py-4 h-screen
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
-        style={{
-          borderRight: '1px solid var(--border)',
-          background: 'var(--bg)',
-          padding: '16px 12px',
-          height: '100vh',
-        }}
       >
         {/* Wordmark */}
         <div className="flex items-center gap-2.5 px-2 pb-3.5 mb-1">
           <div
-            className="w-7 h-7 rounded-lg grid place-items-center"
-            style={{
-              background: 'var(--accent)',
-              color: 'var(--accent-fg)',
-              boxShadow: '0 0 24px color-mix(in oklab, var(--accent), transparent 60%)',
-            }}
+            className="w-7 h-7 rounded-lg grid place-items-center bg-[var(--accent)] text-[var(--accent-fg)] shadow-[0_0_24px_color-mix(in_oklab,var(--accent),transparent_60%)]"
           >
             <Icons.Wave size={16} strokeWidth={2} />
           </div>
@@ -109,19 +99,12 @@ export default function Layout({ children }) {
         {/* Search trigger */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="flex items-center gap-2.5 px-2.5 py-2 mb-2 text-[13px] text-left"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-md)',
-            color: 'var(--text-mute)',
-          }}
+          className="flex items-center gap-2.5 px-2.5 py-2 mb-2 text-[13px] text-left bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-mute)]"
         >
           <Icons.Search size={14} />
           <span className="flex-1">Search or ask...</span>
           <kbd
-            className="text-[10px] mono px-[5px] py-0.5 rounded mute hidden sm:inline"
-            style={{ border: '1px solid var(--border)' }}
+            className="text-[10px] mono px-[5px] py-0.5 rounded mute hidden sm:inline border border-[var(--border)]"
           >
             ⌘K
           </kbd>
@@ -156,15 +139,11 @@ export default function Layout({ children }) {
               <button
                 key={kb.id}
                 onClick={() => navigate(`/kb/${kb.id}`)}
-                className="flex items-center gap-2.5 py-[7px] px-2 text-left text-[13px] transition-colors"
-                style={{
-                  borderRadius: 'var(--r-md)',
-                  background: isActive ? 'var(--surface)' : 'transparent',
-                  border: isActive ? '1px solid var(--border)' : '1px solid transparent',
-                  color: isActive ? 'var(--text)' : 'var(--text-dim)',
-                }}
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--surface)' }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                className={`flex items-center gap-2.5 py-[7px] px-2 text-left text-[13px] transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
+                  isActive
+                    ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'
+                    : 'bg-transparent border-transparent text-[var(--text-dim)]'
+                }`}
               >
                 <KBGlyph name={kb.name} size={20} />
                 <span className="flex-1 truncate">{kb.name}</span>
@@ -181,8 +160,7 @@ export default function Layout({ children }) {
 
         {/* Footer */}
         <div
-          className="flex items-center justify-between px-2 pt-2.5 mt-2"
-          style={{ borderTop: '1px solid var(--border-soft)' }}
+          className="flex items-center justify-between px-2 pt-2.5 mt-2 border-t border-[var(--border-soft)]"
         >
           <span className="text-[11px] mute mono">{totalHours.toFixed(1)} h indexed</span>
           <button className="mute" title="Settings"><Icons.Settings size={15} /></button>
@@ -193,8 +171,7 @@ export default function Layout({ children }) {
       <main className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
         {/* Mobile header */}
         <div
-          className="flex lg:hidden items-center gap-3 px-4 py-3 shrink-0"
-          style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}
+          className="flex lg:hidden items-center gap-3 px-4 py-3 shrink-0 border-b border-[var(--border)] bg-[var(--bg)]"
         >
           <button onClick={() => setSidebarOpen(true)} className="mute">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -203,8 +180,7 @@ export default function Layout({ children }) {
           </button>
           <div className="flex items-center gap-2">
             <div
-              className="w-6 h-6 rounded-md grid place-items-center"
-              style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}
+              className="w-6 h-6 rounded-md grid place-items-center bg-[var(--accent)] text-[var(--accent-fg)]"
             >
               <Icons.Wave size={12} strokeWidth={2} />
             </div>
@@ -234,15 +210,11 @@ function NavItem({ icon, label, hint, count, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2.5 py-[7px] px-2.5 text-[13px] text-left transition-colors"
-      style={{
-        borderRadius: 'var(--r-md)',
-        background: active ? 'var(--surface)' : 'transparent',
-        border: active ? '1px solid var(--border)' : '1px solid transparent',
-        color: active ? 'var(--text)' : 'var(--text-dim)',
-      }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--surface)' }}
-      onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent' }}
+      className={`flex items-center gap-2.5 py-[7px] px-2.5 text-[13px] text-left transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
+        active
+          ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'
+          : 'bg-transparent border-transparent text-[var(--text-dim)]'
+      }`}
     >
       {icon}
       <span className="flex-1">{label}</span>

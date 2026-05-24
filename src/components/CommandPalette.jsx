@@ -65,22 +65,14 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
   return (
     <div
       onClick={() => onClose(null)}
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh]"
-      style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/50 backdrop-blur-[4px]"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[600px] max-w-[92vw] overflow-hidden fade-in"
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r-lg)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-        }}
+        className="w-[600px] max-w-[92vw] overflow-hidden fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
       >
         <div
-          className="flex items-center gap-3 px-[18px] py-3.5"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          className="flex items-center gap-3 px-[18px] py-3.5 border-b border-[var(--border)]"
         >
           <Icons.Search size={16} className="mute" />
           <input
@@ -88,16 +80,14 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search KBs, podcasts, or ask anything..."
-            className="flex-1 bg-transparent border-none outline-none text-[15px]"
-            style={{ color: 'var(--text)' }}
+            className="flex-1 bg-transparent border-none outline-none text-[15px] text-[var(--text)]"
             onKeyDown={(e) => {
               if (e.key === 'Escape') onClose(null)
               if (e.key === 'Enter' && items[0]) handleSelect(items[0])
             }}
           />
           <kbd
-            className="text-[10px] mono px-[5px] py-0.5 rounded mute"
-            style={{ border: '1px solid var(--border)' }}
+            className="text-[10px] mono px-[5px] py-0.5 rounded mute border border-[var(--border)]"
           >
             esc
           </kbd>
@@ -108,16 +98,14 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
             <button
               key={`${it.kind}-${it.label}-${i}`}
               onClick={() => handleSelect(it)}
-              className="w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors"
-              style={{
-                background: i === 0 ? 'var(--surface)' : 'transparent',
-                borderLeft: i === 0 ? '2px solid var(--accent)' : '2px solid transparent',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = i === 0 ? 'var(--surface)' : 'transparent' }}
+              className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
+                i === 0
+                  ? 'bg-[var(--surface)] border-l-[var(--accent)]'
+                  : 'bg-transparent border-l-transparent'
+              }`}
             >
               <span className="mute">{it.glyph}</span>
-              <span className="flex-1 min-w-0 text-[13.5px] truncate" style={{ color: 'var(--text)' }}>
+              <span className="flex-1 min-w-0 text-[13.5px] truncate text-[var(--text)]">
                 {it.label}
               </span>
               <span className="text-[11px] mono mute">{it.hint}</span>
@@ -130,8 +118,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
         </div>
 
         <div
-          className="flex gap-4 px-[18px] py-2.5 text-[10px] mono mute"
-          style={{ borderTop: '1px solid var(--border)' }}
+          className="flex gap-4 px-[18px] py-2.5 text-[10px] mono mute border-t border-[var(--border)]"
         >
           <span>↑↓ navigate</span>
           <span>↵ select</span>

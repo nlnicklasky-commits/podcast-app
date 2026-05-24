@@ -50,27 +50,18 @@ export default function ProcessingLog({ podcastId, status }) {
 
   return (
     <div
-      className="overflow-hidden"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-lg)',
-      }}
+      className="overflow-hidden bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between p-3.5 text-[13px] transition-colors"
-        style={{ color: 'var(--text-dim)' }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)' }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)' }}
+        className="w-full flex items-center justify-between p-3.5 text-[13px] transition-colors text-[var(--text-dim)] hover:text-[var(--text)]"
       >
         <span className="flex items-center gap-2">
-          <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>{'>'}_</span>
+          <span className="mono text-[11px] text-[var(--accent)]">{'>'}_</span>
           <span>Processing Log ({logs.length} entries)</span>
           {isActive && (
             <span
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ background: 'oklch(0.72 0.14 150)', animation: 'pulse-dot 1.2s ease-in-out infinite' }}
+              className="w-1.5 h-1.5 rounded-full bg-[oklch(0.72_0.14_150)] animate-[pulse-dot_1.2s_ease-in-out_infinite]"
             />
           )}
         </span>
@@ -79,8 +70,7 @@ export default function ProcessingLog({ podcastId, status }) {
 
       {expanded && (
         <div
-          className="p-3.5 max-h-48 overflow-y-auto mono text-[11px]"
-          style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}
+          className="p-3.5 max-h-48 overflow-y-auto mono text-[11px] border-t border-[var(--border)] bg-[var(--bg)]"
         >
           {logs.length === 0 ? (
             <p className="mute m-0">Waiting for logs...</p>
@@ -88,7 +78,7 @@ export default function ProcessingLog({ podcastId, status }) {
             <div className="space-y-1">
               {logs.map((log) => (
                 <div key={log.id} className="flex gap-2">
-                  <span className="shrink-0" style={{ color: 'var(--text-mute)' }}>
+                  <span className="shrink-0 text-[var(--text-mute)]">
                     {formatTime(log.created_at)}
                   </span>
                   <span
@@ -97,7 +87,7 @@ export default function ProcessingLog({ podcastId, status }) {
                   >
                     [{log.step}]
                   </span>
-                  <span style={{ color: 'var(--text-dim)' }}>{log.message}</span>
+                  <span className="text-[var(--text-dim)]">{log.message}</span>
                 </div>
               ))}
               <div ref={bottomRef} />

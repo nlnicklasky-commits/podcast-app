@@ -84,7 +84,7 @@ export default function Home() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p style={{ color: 'var(--error)' }} className="mb-2">Failed to load</p>
+          <p className="text-[var(--error)] mb-2">Failed to load</p>
           <p className="text-sm mute">{error}</p>
         </div>
       </div>
@@ -112,7 +112,7 @@ export default function Home() {
           </div>
           <h1 className="serif text-3xl sm:text-[40px] font-medium tracking-tight leading-[1.1] m-0">
             Your library is{' '}
-            <span style={{ color: 'var(--accent)' }}>{Math.round(totalHours)} hours</span> deep
+            <span className="text-[var(--accent)]">{Math.round(totalHours)} hours</span> deep
             {processingPodcasts.length > 0 && (
               <> — {processingPodcasts.length} episode{processingPodcasts.length !== 1 ? 's' : ''} still processing.</>
             )}
@@ -127,15 +127,7 @@ export default function Home() {
           action={
             <button
               onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] transition-colors"
-              style={{
-                background: 'transparent',
-                border: '1px solid transparent',
-                borderRadius: 'var(--r-md)',
-                color: 'var(--text-dim)',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] transition-colors bg-transparent border border-transparent rounded-[var(--r-md)] text-[var(--text-dim)] hover:bg-[var(--surface)]"
             >
               <Icons.Plus size={13} />
               New KB
@@ -145,30 +137,20 @@ export default function Home() {
 
         {knowledgeBases.length === 0 ? (
           <div
-            className="text-center py-16 mb-9"
-            style={{
-              border: '1px dashed var(--border)',
-              borderRadius: 'var(--r-lg)',
-            }}
+            className="text-center py-16 mb-9 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
           >
             <p className="mute mb-1">No knowledge bases yet</p>
             <p className="text-sm mute">Create one to start organizing podcasts by topic.</p>
             <button
               onClick={() => setShowCreate(true)}
-              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors"
-              style={{
-                background: 'var(--accent)',
-                color: 'var(--accent-fg)',
-                borderRadius: 'var(--r-md)',
-              }}
+              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
             >
               Create your first knowledge base
             </button>
           </div>
         ) : (
           <div
-            className="grid gap-3.5 mb-9"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}
+            className="grid gap-3.5 mb-9 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
           >
             {knowledgeBases.map((kb) => (
               <KBCard
@@ -189,15 +171,7 @@ export default function Home() {
               action={
                 <button
                   onClick={() => setShowAddPodcast(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] transition-colors"
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid transparent',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-dim)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] transition-colors bg-transparent border border-transparent rounded-[var(--r-md)] text-[var(--text-dim)] hover:bg-[var(--surface)]"
                 >
                   <Icons.Plus size={13} />
                   Add podcast
@@ -205,44 +179,29 @@ export default function Home() {
               }
             />
             <div
-              className="overflow-hidden"
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--r-lg)',
-              }}
+              className="overflow-hidden bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
             >
               {recentPodcasts.map((p, i) => (
                 <button
                   key={p.id}
                   onClick={() => navigate(`/podcast/${p.id}`)}
-                  className="flex items-center gap-3.5 px-[18px] py-3.5 w-full text-left transition-colors"
-                  style={{
-                    borderBottom: i === recentPodcasts.length - 1 ? 'none' : '1px solid var(--border-soft)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  className={`flex items-center gap-3.5 px-[18px] py-3.5 w-full text-left transition-colors hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
                 >
                   {p.thumbnail_url ? (
                     <img
                       src={p.thumbnail_url}
                       alt=""
-                      className="w-10 h-10 object-cover shrink-0"
-                      style={{ borderRadius: 'var(--r-sm)' }}
+                      className="w-10 h-10 object-cover shrink-0 rounded-[var(--r-sm)]"
                     />
                   ) : (
                     <div
-                      className="w-10 h-10 shrink-0 grid place-items-center mute"
-                      style={{
-                        background: 'var(--bg-2)',
-                        borderRadius: 'var(--r-sm)',
-                      }}
+                      className="w-10 h-10 shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
                     >
                       <Icons.Headphones size={16} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] truncate" style={{ color: 'var(--text)' }}>
+                    <div className="text-[13px] truncate text-[var(--text)]">
                       {p.title || 'Untitled'}
                     </div>
                     <div className="text-[12px] dim mt-0.5">{p.channel || 'Unknown'}</div>
@@ -260,22 +219,13 @@ export default function Home() {
 
         {podcasts.length === 0 && knowledgeBases.length > 0 && (
           <div
-            className="text-center py-16"
-            style={{
-              border: '1px dashed var(--border)',
-              borderRadius: 'var(--r-lg)',
-            }}
+            className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
           >
             <p className="mute mb-1">No podcasts yet</p>
             <p className="text-sm mute">Search for a podcast to get started.</p>
             <button
               onClick={() => setShowAddPodcast(true)}
-              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors"
-              style={{
-                background: 'var(--accent)',
-                color: 'var(--accent-fg)',
-                borderRadius: 'var(--r-md)',
-              }}
+              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
             >
               Add your first podcast
             </button>
@@ -306,20 +256,7 @@ function KBCard({ kb, onClick, onDelete }) {
   return (
     <button
       onClick={onClick}
-      className="text-left flex flex-col gap-2.5 p-[18px] transition-all group"
-      style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--r-lg)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 60%)'
-        e.currentTarget.style.transform = 'translateY(-1px)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.transform = 'translateY(0)'
-      }}
+      className="text-left flex flex-col gap-2.5 p-[18px] transition-all group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
     >
       <div className="flex items-center gap-2.5">
         <KBGlyph name={kb.name} size={28} />

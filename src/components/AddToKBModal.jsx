@@ -43,22 +43,15 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5"
-      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/55 backdrop-blur-[4px]"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md fade-in"
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--r-lg)',
-        }}
+        className="w-full max-w-md fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)]"
       >
         <div
-          className="flex items-center px-[18px] py-3.5"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          className="flex items-center px-[18px] py-3.5 border-b border-[var(--border)]"
         >
           <h3 className="m-0 text-[15px] font-medium">Add to Knowledge Base</h3>
           <button onClick={onClose} className="ml-auto mute">
@@ -89,22 +82,11 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
                   key={kb.id}
                   onClick={() => handleAdd(kb)}
                   disabled={adding === kb.id}
-                  className="w-full flex items-center gap-3 text-left p-3 transition-colors disabled:opacity-50"
-                  style={{
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--accent), transparent 50%)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                  }}
+                  className="w-full flex items-center gap-3 text-left p-3 transition-colors disabled:opacity-50 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[color-mix(in_oklab,var(--accent),transparent_50%)]"
                 >
                   <KBGlyph name={kb.name} size={32} />
                   <div className="flex-1 min-w-0">
-                    <span className="text-[14px] font-medium block" style={{ color: 'var(--text)' }}>
+                    <span className="text-[14px] font-medium block text-[var(--text)]">
                       {kb.name}
                     </span>
                     {kb.description && (
@@ -115,8 +97,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
                   </div>
                   {adding === kb.id && (
                     <span
-                      className="w-4 h-4 rounded-full border-2 animate-spin shrink-0"
-                      style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                      className="w-4 h-4 rounded-full border-2 animate-spin shrink-0 border-[var(--accent)] border-t-transparent"
                     />
                   )}
                 </button>
@@ -125,7 +106,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
           )}
 
           {error && (
-            <p className="text-[12px] mt-3" style={{ color: 'var(--error)' }}>{error}</p>
+            <p className="text-[12px] mt-3 text-[var(--error)]">{error}</p>
           )}
 
           <div className="flex justify-end pt-4">

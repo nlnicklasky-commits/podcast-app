@@ -31,18 +31,13 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
       {/* Summary */}
       {insights.summary && (
         <div
-          className="p-[18px]"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-lg)',
-          }}
+          className="p-[18px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
         >
           <div className="flex items-center gap-2 mb-2.5">
-            <Icons.Sparkle size={13} style={{ color: 'var(--accent)' }} />
+            <Icons.Sparkle size={13} className="text-[var(--accent)]" />
             <span className="text-[11px] mono mute uppercase tracking-[0.1em]">Summary</span>
           </div>
-          <p className="serif text-[16px] leading-relaxed tracking-tight m-0" style={{ color: 'var(--text)' }}>
+          <p className="serif text-[16px] leading-relaxed tracking-tight m-0 text-[var(--text)]">
             {insights.summary}
           </p>
         </div>
@@ -51,21 +46,16 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
       {/* Key Points */}
       {insights.key_points?.length > 0 && (
         <div
-          className="p-[18px]"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-lg)',
-          }}
+          className="p-[18px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
         >
           <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">Key points</div>
           <div className="flex flex-col gap-2.5">
             {insights.key_points.map((k, i) => (
               <div key={i} className="flex gap-3">
-                <span className="mono text-[11px] pt-[3px]" style={{ color: 'var(--accent)' }}>
+                <span className="mono text-[11px] pt-[3px] text-[var(--accent)]">
                   {String(i + 1).padStart(2, '0')}
                 </span>
-                <p className="m-0 text-[14px] leading-relaxed" style={{ color: 'var(--text)' }}>{k}</p>
+                <p className="m-0 text-[14px] leading-relaxed text-[var(--text)]">{k}</p>
               </div>
             ))}
           </div>
@@ -75,12 +65,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
       {/* Topics */}
       {insights.topics?.length > 0 && (
         <div
-          className="p-[18px]"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-lg)',
-          }}
+          className="p-[18px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
         >
           <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">Topics</div>
           <div className="flex flex-wrap gap-1.5">
@@ -92,12 +77,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
       {/* Entities */}
       {insights.entities?.length > 0 && (
         <div
-          className="p-[18px]"
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-lg)',
-          }}
+          className="p-[18px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
         >
           <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-3">
             People, Companies & Concepts
@@ -114,13 +94,7 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
               return (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] mono"
-                  style={{
-                    background: 'var(--bg-2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 999,
-                    color: 'var(--text-dim)',
-                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] mono bg-[var(--bg-2)] border border-[var(--border)] rounded-full text-[var(--text-dim)]"
                   title={entity.type}
                 >
                   <span

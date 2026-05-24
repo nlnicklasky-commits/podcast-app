@@ -150,23 +150,16 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5"
-      style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/55 backdrop-blur-[4px]"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in"
-        style={{
-          background: 'var(--bg-2)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px 12px var(--r-lg) var(--r-lg)',
-        }}
+        className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[12px_12px_var(--r-lg)_var(--r-lg)]"
       >
         {/* Header */}
         <div
-          className="flex items-center px-[18px] py-3.5 shrink-0"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          className="flex items-center px-[18px] py-3.5 shrink-0 border-b border-[var(--border)]"
         >
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {step === 'episodes' && mode === 'search' && (
@@ -187,28 +180,25 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
         {step === 'shows' && (
           <div className="px-[18px] pt-3.5 shrink-0">
             <div
-              className="flex gap-1 p-1"
-              style={{ background: 'var(--surface)', borderRadius: 'var(--r-md)' }}
+              className="flex gap-1 p-1 bg-[var(--surface)] rounded-[var(--r-md)]"
             >
               <button
                 onClick={() => { setMode('search'); setError('') }}
-                className="flex-1 text-[13px] py-1.5 transition-colors font-medium"
-                style={{
-                  background: mode === 'search' ? 'var(--accent)' : 'transparent',
-                  color: mode === 'search' ? 'var(--accent-fg)' : 'var(--text-mute)',
-                  borderRadius: 'var(--r-sm)',
-                }}
+                className={`flex-1 text-[13px] py-1.5 transition-colors font-medium rounded-[var(--r-sm)] ${
+                  mode === 'search'
+                    ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                    : 'bg-transparent text-[var(--text-mute)]'
+                }`}
               >
                 Search Podcasts
               </button>
               <button
                 onClick={() => { setMode('url'); setError('') }}
-                className="flex-1 text-[13px] py-1.5 transition-colors font-medium"
-                style={{
-                  background: mode === 'url' ? 'var(--accent)' : 'transparent',
-                  color: mode === 'url' ? 'var(--accent-fg)' : 'var(--text-mute)',
-                  borderRadius: 'var(--r-sm)',
-                }}
+                className={`flex-1 text-[13px] py-1.5 transition-colors font-medium rounded-[var(--r-sm)] ${
+                  mode === 'url'
+                    ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
+                    : 'bg-transparent text-[var(--text-mute)]'
+                }`}
               >
                 Paste URL
               </button>
@@ -223,12 +213,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
               <>
                 <div className="shrink-0 mb-3">
                   <div
-                    className="flex items-center gap-2 px-3 py-2"
-                    style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--r-md)',
-                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)]"
                   >
                     <Icons.Search size={14} className="mute shrink-0" />
                     <input
@@ -236,23 +221,21 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                       value={query}
                       onChange={onQueryChange}
                       placeholder="Search for a podcast..."
-                      className="flex-1 bg-transparent border-none outline-none text-[13.5px]"
-                      style={{ color: 'var(--text)' }}
+                      className="flex-1 bg-transparent border-none outline-none text-[13.5px] text-[var(--text)]"
                       autoFocus
                     />
                   </div>
                 </div>
 
                 {error && (
-                  <p className="text-[12px] mb-2" style={{ color: 'var(--error)' }}>{error}</p>
+                  <p className="text-[12px] mb-2 text-[var(--error)]">{error}</p>
                 )}
 
                 <div className="flex-1 overflow-y-auto min-h-0 space-y-1">
                   {searching && (
                     <div className="flex items-center justify-center py-8 gap-2">
                       <span
-                        className="w-4 h-4 rounded-full border-2 animate-spin"
-                        style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                        className="w-4 h-4 rounded-full border-2 animate-spin border-[var(--accent)] border-t-transparent"
                       />
                       <span className="text-[13px] mute">Searching...</span>
                     </div>
@@ -272,21 +255,17 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                     <button
                       key={show.id}
                       onClick={() => handleSelectShow(show)}
-                      className="w-full flex gap-3 p-2.5 text-left group transition-colors"
-                      style={{ borderRadius: 'var(--r-md)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                      className="w-full flex gap-3 p-2.5 text-left group transition-colors rounded-[var(--r-md)] hover:bg-[var(--surface)]"
                     >
                       {show.artwork && (
                         <img
                           src={show.artwork}
                           alt=""
-                          className="w-[52px] h-[52px] object-cover shrink-0 transition-all"
-                          style={{ borderRadius: 'var(--r-sm)' }}
+                          className="w-[52px] h-[52px] object-cover shrink-0 transition-all rounded-[var(--r-sm)]"
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[14px] font-medium line-clamp-1 m-0" style={{ color: 'var(--text)' }}>
+                        <p className="text-[14px] font-medium line-clamp-1 m-0 text-[var(--text)]">
                           {decodeHtml(show.title)}
                         </p>
                         <p className="text-[12px] dim mt-0.5 m-0">{show.author}</p>
@@ -312,15 +291,14 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                 )}
 
                 {error && (
-                  <p className="text-[12px] mb-2" style={{ color: 'var(--error)' }}>{error}</p>
+                  <p className="text-[12px] mb-2 text-[var(--error)]">{error}</p>
                 )}
 
                 <div className="flex-1 overflow-y-auto min-h-0 space-y-0.5">
                   {loadingEpisodes && (
                     <div className="flex items-center justify-center py-8 gap-2">
                       <span
-                        className="w-4 h-4 rounded-full border-2 animate-spin"
-                        style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                        className="w-4 h-4 rounded-full border-2 animate-spin border-[var(--accent)] border-t-transparent"
                       />
                       <span className="text-[13px] mute">Loading episodes...</span>
                     </div>
@@ -333,17 +311,14 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                   {!loadingEpisodes && episodes.map((ep) => (
                     <div
                       key={ep.id}
-                      className="p-2.5 transition-colors"
-                      style={{ borderRadius: 'var(--r-md)' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                      className="p-2.5 transition-colors rounded-[var(--r-md)] hover:bg-[var(--surface)]"
                     >
-                      <p className="text-[13.5px] font-medium line-clamp-2 leading-snug m-0" style={{ color: 'var(--text)' }}>
+                      <p className="text-[13.5px] font-medium line-clamp-2 leading-snug m-0 text-[var(--text)]">
                         {decodeHtml(ep.title)}
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         {ep.duration > 0 && (
-                          <span className="mono text-[11px]" style={{ color: 'var(--accent)' }}>
+                          <span className="mono text-[11px] text-[var(--accent)]">
                             {formatDuration(ep.duration)}
                           </span>
                         )}
@@ -359,12 +334,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                           <button
                             onClick={() => handleSelectEpisode(ep, 'transcript')}
                             disabled={loading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
-                            style={{
-                              background: 'var(--accent)',
-                              color: 'var(--accent-fg)',
-                              borderRadius: 'var(--r-sm)',
-                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)]"
                           >
                             <Icons.FileText size={12} />
                             From Transcript
@@ -373,13 +343,11 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                         <button
                           onClick={() => handleSelectEpisode(ep, 'audio')}
                           disabled={loading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50"
-                          style={{
-                            background: hasTranscript(ep) ? 'var(--surface)' : 'var(--accent)',
-                            color: hasTranscript(ep) ? 'var(--text-mute)' : 'var(--accent-fg)',
-                            border: hasTranscript(ep) ? '1px solid var(--border)' : 'none',
-                            borderRadius: 'var(--r-sm)',
-                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 rounded-[var(--r-sm)] ${
+                            hasTranscript(ep)
+                              ? 'bg-[var(--surface)] text-[var(--text-mute)] border border-[var(--border)]'
+                              : 'bg-[var(--accent)] text-[var(--accent-fg)] border-none'
+                          }`}
                         >
                           <Icons.Mic size={12} />
                           From Audio
@@ -391,12 +359,10 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
 
                 {loading && (
                   <div
-                    className="flex items-center justify-center py-3 mt-2 shrink-0"
-                    style={{ borderTop: '1px solid var(--border)' }}
+                    className="flex items-center justify-center py-3 mt-2 shrink-0 border-t border-[var(--border)]"
                   >
                     <span
-                      className="w-3.5 h-3.5 rounded-full border-2 animate-spin mr-2"
-                      style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
+                      className="w-3.5 h-3.5 rounded-full border-2 animate-spin mr-2 border-[var(--accent)] border-t-transparent"
                     />
                     <span className="text-[13px] mute">Adding episode...</span>
                   </div>
@@ -416,20 +382,14 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors"
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--r-md)',
-                  color: 'var(--text)',
-                }}
+                className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text)]"
                 autoFocus
               />
               <p className="text-[11px] mute mt-1.5">
                 Paste a YouTube URL directly. Podcast search above is recommended.
               </p>
               {error && (
-                <p className="text-[12px] mt-1.5" style={{ color: 'var(--error)' }}>{error}</p>
+                <p className="text-[12px] mt-1.5 text-[var(--error)]">{error}</p>
               )}
             </div>
             <div className="flex justify-end gap-3 pt-2">
@@ -443,12 +403,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
               <button
                 type="submit"
                 disabled={!url.trim() || loading}
-                className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
-                style={{
-                  background: 'var(--accent)',
-                  color: 'var(--accent-fg)',
-                  borderRadius: 'var(--r-md)',
-                }}
+                className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
               >
                 {loading ? 'Adding...' : 'Add Podcast'}
               </button>
