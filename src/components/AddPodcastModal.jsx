@@ -2,11 +2,9 @@ import { useState, useRef, useCallback } from 'react'
 import { searchShows, getEpisodes } from '../services/podcastIndex'
 import * as Icons from './Icons'
 
-export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
-  const [mode, setMode] = useState('search')
+export default function AddPodcastModal({ onClose, onAddFromIndex }) {
   const [step, setStep] = useState('shows')
   const [query, setQuery] = useState('')
-  const [url, setUrl] = useState('')
   const [shows, setShows] = useState([])
   const [selectedShow, setSelectedShow] = useState(null)
   const [episodes, setEpisodes] = useState([])
@@ -15,15 +13,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
-
-  function isValidYouTubeUrl(str) {
-    try {
-      const u = new URL(str)
-      return u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')
-    } catch {
-      return false
-    }
-  }
 
   const handleSearch = useCallback(async (q) => {
     if (!q.trim() || q.trim().length < 2) {
@@ -98,24 +87,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
     return !!(episode.transcriptUrl || (episode.transcripts && episode.transcripts.length > 0))
   }
 
-  async function handleUrlSubmit(e) {
-    e.preventDefault()
-    setError('')
-    if (!isValidYouTubeUrl(url)) {
-      setError('Please enter a valid YouTube URL')
-      return
-    }
-    setLoading(true)
-    try {
-      const result = await onAdd(url.trim())
-      if (result?.alreadyProcessed) setError('')
-      onClose()
-    } catch (err) {
-      setError(err.message || 'Failed to add podcast')
-      setLoading(false)
-    }
-  }
-
   function formatDuration(seconds) {
     if (!seconds) return ''
     const h = Math.floor(seconds / 3600)
@@ -162,7 +133,7 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
           className="flex items-center px-[18px] py-3.5 shrink-0 border-b border-[var(--border)]"
         >
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            {step === 'episodes' && mode === 'search' && (
+            {step === 'episodes' && (
               <button onClick={handleBackToShows} className="mute p-0.5">
                 <Icons.Back size={16} />
               </button>
@@ -176,39 +147,9 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
           </button>
         </div>
 
-        {/* Mode tabs */}
-        {step === 'shows' && (
-          <div className="px-[18px] pt-3.5 shrink-0">
-            <div
-              className="flex gap-1 p-1 bg-[var(--surface)] rounded-[var(--r-md)]"
-            >
-              <button
-                onClick={() => { setMode('search'); setError('') }}
-                className={`flex-1 text-[13px] py-1.5 transition-colors font-medium rounded-[var(--r-sm)] ${
-                  mode === 'search'
-                    ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                    : 'bg-transparent text-[var(--text-mute)]'
-                }`}
-              >
-                Search Podcasts
-              </button>
-              <button
-                onClick={() => { setMode('url'); setError('') }}
-                className={`flex-1 text-[13px] py-1.5 transition-colors font-medium rounded-[var(--r-sm)] ${
-                  mode === 'url'
-                    ? 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                    : 'bg-transparent text-[var(--text-mute)]'
-                }`}
-              >
-                Paste URL
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Search mode */}
-        {mode === 'search' ? (
-          <div className="flex flex-col flex-1 min-h-0 px-[18px] py-3.5">
+        <div className="flex flex-col flex-1 min-h-0 px-[18px] py-3.5">
             {step === 'shows' && (
               <>
                 <div className="shrink-0 mb-3">
@@ -370,46 +311,6 @@ export default function AddPodcastModal({ onClose, onAdd, onAddFromIndex }) {
               </>
             )}
           </div>
-        ) : (
-          /* URL mode */
-          <form onSubmit={handleUrlSubmit} className="p-[18px] space-y-4">
-            <div>
-              <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">
-                Podcast URL
-              </label>
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text)]"
-                autoFocus
-              />
-              <p className="text-[11px] mute mt-1.5">
-                Paste a YouTube URL directly. Podcast search above is recommended.
-              </p>
-              {error && (
-                <p className="text-[12px] mt-1.5 text-[var(--error)]">{error}</p>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm dim transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!url.trim() || loading}
-                className="px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
-              >
-                {loading ? 'Adding...' : 'Add Podcast'}
-              </button>
-            </div>
-          </form>
-        )}
       </div>
     </div>
   )

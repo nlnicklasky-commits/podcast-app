@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase } from '../services/knowledgeBases'
-import { listAllPodcasts, addPodcast, addPodcastFromIndex } from '../services/podcasts'
+import { listAllPodcasts, addPodcastFromIndex } from '../services/podcasts'
 import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { formatDate, formatDuration, timeAgo } from '../lib/utils'
@@ -56,13 +56,6 @@ export default function Home() {
     await deleteKnowledgeBase(id)
     setKnowledgeBases((prev) => prev.filter((kb) => kb.id !== id))
     window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
-  }
-
-  async function handleAddStandalonePodcast(url) {
-    const { podcast, alreadyProcessed } = await addPodcast(null, url)
-    setPodcasts((prev) => [podcast, ...prev])
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
-    return { alreadyProcessed }
   }
 
   async function handleAddFromIndex(episode) {
@@ -243,7 +236,6 @@ export default function Home() {
       {showAddPodcast && (
         <AddPodcastModal
           onClose={() => setShowAddPodcast(false)}
-          onAdd={handleAddStandalonePodcast}
           onAddFromIndex={handleAddFromIndex}
         />
       )}

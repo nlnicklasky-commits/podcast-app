@@ -4,10 +4,21 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // Constants
 // ---------------------------------------------------------------------------
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://podcast-app-ten-gamma.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 const MAX_EPISODES = 50;
 const TIMEOUT_PODCAST_INDEX = 30 * 1000; // 30 seconds
@@ -29,10 +40,16 @@ function errorResponse(
   message: string,
   code: string,
   status: number,
+  headers?: Record<string, string>,
 ): Response {
+  const respHeaders = headers || {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
   return new Response(
     JSON.stringify({ error: message, code }),
-    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    { status, headers: { ...respHeaders, "Content-Type": "application/json" } },
   );
 }
 
@@ -99,6 +116,8 @@ async function podcastIndexFetch(endpoint: string, params: Record<string, string
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -106,12 +125,12 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
     const { feed_id, feed_url } = body;
     if (!feed_id) {
-      return errorResponse("feed_id is required", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("feed_id is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
     const data = await podcastIndexFetch("/episodes/byfeedid", {
@@ -120,8 +139,9 @@ Deno.serve(async (req: Request) => {
       fulltext: "1",
     });
 
-    // Fetch RSS feed to extract podcast:transcript tags (PI API doesn't expose them)
+    // Fetch RSS feed to extract podcast:transcript and podcast:locked tags (PI API doesn't expose them)
     const transcriptMap = new Map<string, { url: string; type: string }[]>();
+    let feedLocked = false;
     if (feed_url) {
       try {
         const controller = new AbortController();
@@ -135,6 +155,15 @@ Deno.serve(async (req: Request) => {
 
           if (rssResponse.ok) {
             const rssText = await rssResponse.text();
+
+            // Check for <podcast:locked>yes</podcast:locked> at channel level
+            // Extract the channel-level content (before the first <item>)
+            const channelContent = rssText.split(/<item[\s>]/i)[0] || "";
+            const lockedMatch = channelContent.match(/<podcast:locked[^>]*>\s*(yes)\s*<\/podcast:locked>/i);
+            if (lockedMatch) {
+              feedLocked = true;
+            }
+
             // Split by <item> to process each episode
             const items = rssText.split(/<item[\s>]/i).slice(1);
             for (const item of items) {
@@ -207,11 +236,12 @@ Deno.serve(async (req: Request) => {
           link: ep.link,
           feedId: ep.feedId,
           transcripts: rssTranscripts,
+          locked: feedLocked,
         };
       },
     );
 
-    return new Response(JSON.stringify({ episodes }), {
+    return new Response(JSON.stringify({ episodes, locked: feedLocked }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
@@ -221,6 +251,7 @@ Deno.serve(async (req: Request) => {
       error.message,
       error.code || ErrorCode.INTERNAL_ERROR,
       error.httpStatus || 500,
+      corsHeaders,
     );
   }
 });

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
-import { listPodcasts, addPodcast, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
+import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
@@ -42,13 +42,6 @@ export default function KnowledgeBase() {
     window.addEventListener('podbrain:add-podcast', onAddPodcast)
     return () => window.removeEventListener('podbrain:add-podcast', onAddPodcast)
   }, [])
-
-  async function handleAddPodcast(url) {
-    const { podcast, alreadyProcessed } = await addPodcast(id, url)
-    setPodcasts((prev) => [podcast, ...prev])
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
-    return { alreadyProcessed }
-  }
 
   async function handleAddFromIndex(episode) {
     const { podcast, alreadyProcessed } = await addPodcastFromIndex(id, episode)
@@ -195,7 +188,6 @@ export default function KnowledgeBase() {
       {showAdd && (
         <AddPodcastModal
           onClose={() => setShowAdd(false)}
-          onAdd={handleAddPodcast}
           onAddFromIndex={handleAddFromIndex}
         />
       )}

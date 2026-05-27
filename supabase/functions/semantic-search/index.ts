@@ -1,11 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://podcast-app-ten-gamma.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_LIMIT = 20;
@@ -27,10 +37,16 @@ function errorResponse(
   message: string,
   code: string,
   status: number,
+  headers?: Record<string, string>,
 ): Response {
+  const respHeaders = headers || {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
   return new Response(JSON.stringify({ error: message, code }), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...respHeaders, "Content-Type": "application/json" },
   });
 }
 
@@ -49,7 +65,14 @@ async function fetchWithTimeout(
   }
 }
 
+/** Strip HTML tags and trim whitespace from user input before DB storage. */
+function sanitizeInput(input: string): string {
+  return input.replace(/<[^>]*>/g, "").trim();
+}
+
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -63,18 +86,21 @@ Deno.serve(async (req: Request) => {
         "Request body must be valid JSON",
         ErrorCode.MISSING_PARAM,
         400,
+        corsHeaders,
       );
     }
 
-    const { query, scope, limit, offset, threshold } = body;
+    const { query: rawQuery, scope, limit, offset, threshold } = body;
 
-    if (!query || typeof query !== "string" || query.trim().length < 3) {
+    if (!rawQuery || typeof rawQuery !== "string" || rawQuery.trim().length < 3) {
       return errorResponse(
         "query is required and must be at least 3 characters",
         ErrorCode.MISSING_PARAM,
         400,
+        corsHeaders,
       );
     }
+    const query = sanitizeInput(rawQuery);
 
     const searchLimit = Math.min(
       Math.max(1, limit ?? DEFAULT_LIMIT),
@@ -98,6 +124,7 @@ Deno.serve(async (req: Request) => {
         "scope.type must be 'all', 'knowledge_base', or 'podcast'",
         ErrorCode.INVALID_PARAM,
         400,
+        corsHeaders,
       );
     }
 
@@ -106,6 +133,7 @@ Deno.serve(async (req: Request) => {
         "scope.id is required when scope.type is not 'all'",
         ErrorCode.INVALID_PARAM,
         400,
+        corsHeaders,
       );
     }
 
@@ -120,6 +148,7 @@ Deno.serve(async (req: Request) => {
         "OPENAI_API_KEY not configured",
         ErrorCode.CONFIG_ERROR,
         500,
+        corsHeaders,
       );
     }
 
@@ -144,6 +173,7 @@ Deno.serve(async (req: Request) => {
           "Embedding request timed out",
           ErrorCode.EMBEDDING_TIMEOUT,
           500,
+          corsHeaders,
         );
       }
       throw err;
@@ -155,6 +185,7 @@ Deno.serve(async (req: Request) => {
         `Embedding failed: ${errText}`,
         ErrorCode.EMBEDDING_FAILED,
         500,
+        corsHeaders,
       );
     }
 
@@ -215,6 +246,7 @@ Deno.serve(async (req: Request) => {
         `Vector search failed: ${searchErr.message}`,
         ErrorCode.SEARCH_FAILED,
         500,
+        corsHeaders,
       );
     }
 
@@ -315,6 +347,7 @@ Deno.serve(async (req: Request) => {
       (err as Error).message,
       ErrorCode.INTERNAL_ERROR,
       500,
+      corsHeaders,
     );
   }
 });

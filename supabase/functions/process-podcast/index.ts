@@ -5,12 +5,21 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Constants
 // ---------------------------------------------------------------------------
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://podcast-app-ten-gamma.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
 
-const COBALT_URL = "https://cobalt-production-8df9.up.railway.app";
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 // Models
 const WHISPER_MODEL = "whisper-large-v3";
@@ -27,7 +36,6 @@ const INSIGHTS_MAX_TOKENS = 4096;
 
 // Timeouts (ms)
 const TIMEOUT_AUDIO_DOWNLOAD = 5 * 60 * 1000;   // 5 min
-const TIMEOUT_COBALT_API = 2 * 60 * 1000;        // 2 min
 const TIMEOUT_TRANSCRIPTION = 5 * 60 * 1000;     // 5 min
 const TIMEOUT_EMBEDDING = 2 * 60 * 1000;         // 2 min
 const TIMEOUT_INSIGHTS = 2 * 60 * 1000;          // 2 min
@@ -36,7 +44,7 @@ const TIMEOUT_TRANSCRIPT_FETCH = 2 * 60 * 1000;  // 2 min
 // Progress breakpoints (percentage)
 const PROGRESS = {
   DOWNLOAD_START: 0,
-  DOWNLOAD_COBALT_URL: 5,
+  DOWNLOAD_PROGRESS: 5,
   DOWNLOAD_COMPLETE: 15,
   UPLOAD_COMPLETE: 30,
   TRANSCRIBE_COMPLETE: 55,
@@ -74,10 +82,16 @@ function errorResponse(
   message: string,
   code: string,
   status: number,
+  headers?: Record<string, string>,
 ): Response {
+  const respHeaders = headers || {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
   return new Response(
     JSON.stringify({ error: message, code }),
-    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    { status, headers: { ...respHeaders, "Content-Type": "application/json" } },
   );
 }
 
@@ -103,6 +117,8 @@ async function fetchWithTimeout(
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -112,13 +128,13 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
     const { podcast_id } = body;
     podcastId = podcast_id;
     if (!podcast_id) {
-      return errorResponse("podcast_id is required", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("podcast_id is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
     const supabase = createClient(
@@ -128,23 +144,23 @@ Deno.serve(async (req: Request) => {
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
-      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
     const groqKey = Deno.env.get("GROQ_API_KEY");
     if (!groqKey) {
-      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
 
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
       .from("podcasts")
-      .select("id, url, title, youtube_video_id, enclosure_url, source, transcript_url")
+      .select("id, url, title, enclosure_url, source, transcript_url")
       .eq("id", podcast_id)
       .limit(1);
 
     if (podErr) throw new Error(`Database error: ${podErr.message}`);
     if (!podcast?.[0]) {
-      return errorResponse(`Podcast ${podcast_id} not found`, ErrorCode.NOT_FOUND, 404);
+      return errorResponse(`Podcast ${podcast_id} not found`, ErrorCode.NOT_FOUND, 404, corsHeaders);
     }
     const pod = podcast[0];
 
@@ -216,7 +232,7 @@ Deno.serve(async (req: Request) => {
     if (pod.transcript_url) {
       // --- TRANSCRIPT PATH: fetch pre-existing transcript from RSS feed ---
       await setStatus("downloading");
-      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
+      await setProgress(PROGRESS.DOWNLOAD_PROGRESS);
       await log("downloading", `Fetching transcript from RSS feed...`);
 
       let txResponse: Response;
@@ -290,117 +306,42 @@ Deno.serve(async (req: Request) => {
 
     let audioBlob: Blob;
 
-    if (pod.enclosure_url) {
-      // PODCAST INDEX / RSS SOURCE -- direct download from enclosure URL
-      await log("downloading", `Downloading audio directly from RSS feed: ${pod.enclosure_url.slice(0, 100)}...`);
-
-      let audioResponse: Response;
-      try {
-        audioResponse = await fetchWithTimeout(pod.enclosure_url, {
-          headers: { "User-Agent": "PodcastBrain/1.0" },
-          timeout: TIMEOUT_AUDIO_DOWNLOAD,
-        });
-      } catch (err) {
-        if ((err as Error).name === "AbortError") {
-          throw Object.assign(
-            new Error(`Audio download timed out after ${TIMEOUT_AUDIO_DOWNLOAD / 1000}s`),
-            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
-          );
-        }
-        throw err;
-      }
-
-      if (!audioResponse.ok) {
-        throw Object.assign(
-          new Error(`Failed to download audio from RSS feed: HTTP ${audioResponse.status}`),
-          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
-        );
-      }
-
-      audioBlob = await audioResponse.blob();
-      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
-      await log("downloading", `Downloaded ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB from RSS feed.`);
-    } else {
-      // YOUTUBE SOURCE -- download via Cobalt (Railway)
-      await log("downloading", `Requesting audio from Cobalt for: ${pod.url}`);
-
-      let cobaltResponse: Response;
-      try {
-        cobaltResponse = await fetchWithTimeout(COBALT_URL, {
-          method: "POST",
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            url: pod.url,
-            downloadMode: "audio",
-            audioFormat: "mp3",
-          }),
-          timeout: TIMEOUT_COBALT_API,
-        });
-      } catch (err) {
-        if ((err as Error).name === "AbortError") {
-          throw Object.assign(
-            new Error(`Cobalt API timed out after ${TIMEOUT_COBALT_API / 1000}s`),
-            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
-          );
-        }
-        throw err;
-      }
-
-      if (!cobaltResponse.ok) {
-        const errText = await cobaltResponse.text();
-        throw Object.assign(
-          new Error(`Cobalt API error: ${cobaltResponse.status} ${errText}`),
-          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
-        );
-      }
-
-      const cobaltResult = await cobaltResponse.json();
-
-      if (cobaltResult.status === "error") {
-        throw Object.assign(
-          new Error(`Cobalt error: ${cobaltResult.error?.code || "unknown"}`),
-          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
-        );
-      }
-
-      const audioUrl = cobaltResult.url;
-      if (!audioUrl) {
-        throw Object.assign(
-          new Error(`Cobalt did not return a download URL. Response: ${JSON.stringify(cobaltResult)}`),
-          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
-        );
-      }
-
-      await setProgress(PROGRESS.DOWNLOAD_COBALT_URL);
-      await log("downloading", "Got download URL from Cobalt. Downloading audio...");
-
-      let audioResponse: Response;
-      try {
-        audioResponse = await fetchWithTimeout(audioUrl, {
-          timeout: TIMEOUT_AUDIO_DOWNLOAD,
-        });
-      } catch (err) {
-        if ((err as Error).name === "AbortError") {
-          throw Object.assign(
-            new Error(`Audio download from Cobalt URL timed out after ${TIMEOUT_AUDIO_DOWNLOAD / 1000}s`),
-            { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
-          );
-        }
-        throw err;
-      }
-
-      if (!audioResponse.ok) {
-        throw Object.assign(
-          new Error(`Failed to download audio from Cobalt URL: HTTP ${audioResponse.status}`),
-          { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
-        );
-      }
-
-      audioBlob = await audioResponse.blob();
+    if (!pod.enclosure_url) {
+      throw Object.assign(
+        new Error("No audio source available. Only podcasts with RSS enclosure URLs are supported."),
+        { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+      );
     }
+
+    // PODCAST INDEX / RSS SOURCE -- direct download from enclosure URL
+    await log("downloading", `Downloading audio directly from RSS feed: ${pod.enclosure_url.slice(0, 100)}...`);
+
+    let audioResponse: Response;
+    try {
+      audioResponse = await fetchWithTimeout(pod.enclosure_url, {
+        headers: { "User-Agent": "PodcastBrain/1.0" },
+        timeout: TIMEOUT_AUDIO_DOWNLOAD,
+      });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw Object.assign(
+          new Error(`Audio download timed out after ${TIMEOUT_AUDIO_DOWNLOAD / 1000}s`),
+          { code: ErrorCode.DOWNLOAD_TIMEOUT, httpStatus: 422 },
+        );
+      }
+      throw err;
+    }
+
+    if (!audioResponse.ok) {
+      throw Object.assign(
+        new Error(`Failed to download audio from RSS feed: HTTP ${audioResponse.status}`),
+        { code: ErrorCode.DOWNLOAD_FAILED, httpStatus: 422 },
+      );
+    }
+
+    audioBlob = await audioResponse.blob();
+    await setProgress(PROGRESS.DOWNLOAD_PROGRESS);
+    await log("downloading", `Downloaded ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB from RSS feed.`);
 
     const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(1);
     await setProgress(PROGRESS.DOWNLOAD_COMPLETE);
@@ -706,7 +647,7 @@ Deno.serve(async (req: Request) => {
       }
     } catch { /* best effort */ }
 
-    return errorResponse(error.message, errorCode, httpStatus);
+    return errorResponse(error.message, errorCode, httpStatus, corsHeaders);
   }
 });
 

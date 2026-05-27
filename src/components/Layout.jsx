@@ -171,11 +171,26 @@ export default function Layout({ children }) {
         </div>
 
         {/* Footer */}
-        <div
-          className="flex items-center justify-between px-2 pt-2.5 mt-2 border-t border-[var(--border-soft)]"
-        >
-          <span className="text-[11px] mute mono">{totalHours.toFixed(1)} h indexed</span>
-          <button className="mute" title="Settings"><Icons.Settings size={15} /></button>
+        <div className="px-2 pt-2.5 mt-2 border-t border-[var(--border-soft)] space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] mute mono">{totalHours.toFixed(1)} h indexed</span>
+            <button className="mute" title="Settings"><Icons.Settings size={15} /></button>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] mute">
+            <a
+              href="https://podcastindex.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[var(--text-dim)] transition-colors"
+            >
+              Powered by Podcast Index
+            </a>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] mute">
+            <Link to="/privacy" className="hover:text-[var(--text-dim)] transition-colors">Privacy</Link>
+            <span>&middot;</span>
+            <Link to="/terms" className="hover:text-[var(--text-dim)] transition-colors">Terms</Link>
+          </div>
         </div>
       </aside>
 

@@ -5,10 +5,21 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Constants
 // ---------------------------------------------------------------------------
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://podcast-app-ten-gamma.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+function getCorsHeaders(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 // Models
 const EMBEDDING_MODEL = "text-embedding-3-small";
@@ -52,10 +63,16 @@ function errorResponse(
   message: string,
   code: string,
   status: number,
+  headers?: Record<string, string>,
 ): Response {
+  const respHeaders = headers || {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
   return new Response(
     JSON.stringify({ error: message, code }),
-    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    { status, headers: { ...respHeaders, "Content-Type": "application/json" } },
   );
 }
 
@@ -85,11 +102,18 @@ function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** Strip HTML tags and trim whitespace from user input before DB storage. */
+function sanitizeInput(input: string): string {
+  return input.replace(/<[^>]*>/g, "").trim();
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -97,16 +121,17 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
-    const { knowledge_base_id, question, conversation_id } = body;
+    const { knowledge_base_id, question: rawQuestion, conversation_id } = body;
     if (!knowledge_base_id) {
-      return errorResponse("knowledge_base_id is required", ErrorCode.MISSING_PARAM, 400);
+      return errorResponse("knowledge_base_id is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
-    if (!question || typeof question !== "string" || question.trim().length === 0) {
-      return errorResponse("question is required", ErrorCode.MISSING_PARAM, 400);
+    if (!rawQuestion || typeof rawQuestion !== "string" || rawQuestion.trim().length === 0) {
+      return errorResponse("question is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
+    const question = sanitizeInput(rawQuestion);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -115,11 +140,11 @@ Deno.serve(async (req: Request) => {
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
-      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+      return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
     const groqKey = Deno.env.get("GROQ_API_KEY");
     if (!groqKey) {
-      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500);
+      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
 
     // 1. Generate embedding for the question
@@ -143,6 +168,7 @@ Deno.serve(async (req: Request) => {
           "Question embedding timed out",
           ErrorCode.EMBEDDING_TIMEOUT,
           500,
+          corsHeaders,
         );
       }
       throw err;
@@ -154,6 +180,7 @@ Deno.serve(async (req: Request) => {
         `Failed to generate question embedding: ${errText}`,
         ErrorCode.EMBEDDING_FAILED,
         500,
+        corsHeaders,
       );
     }
 
@@ -176,6 +203,7 @@ Deno.serve(async (req: Request) => {
         `Vector search failed: ${searchErr.message}`,
         ErrorCode.SEARCH_FAILED,
         500,
+        corsHeaders,
       );
     }
 
@@ -252,6 +280,7 @@ Deno.serve(async (req: Request) => {
           "Chat response timed out",
           ErrorCode.CHAT_TIMEOUT,
           500,
+          corsHeaders,
         );
       }
       throw err;
@@ -263,6 +292,7 @@ Deno.serve(async (req: Request) => {
         `Chat model error: ${chatResponse.status} ${errText}`,
         ErrorCode.CHAT_FAILED,
         500,
+        corsHeaders,
       );
     }
 
@@ -321,6 +351,7 @@ Deno.serve(async (req: Request) => {
       (err as Error).message,
       ErrorCode.INTERNAL_ERROR,
       500,
+      corsHeaders,
     );
   }
 });

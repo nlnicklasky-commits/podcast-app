@@ -3,12 +3,24 @@ import { Tag } from './ui'
 import * as Icons from './Icons'
 import { formatTimestamp } from '../lib/utils'
 
+const SNIPPET_MAX_LENGTH = 200
+
+/** Truncate text to ~200 characters on a word boundary, adding ellipsis */
+function truncateSnippet(text) {
+  if (!text || text.length <= SNIPPET_MAX_LENGTH) return text
+  const truncated = text.slice(0, SNIPPET_MAX_LENGTH)
+  const lastSpace = truncated.lastIndexOf(' ')
+  return (lastSpace > SNIPPET_MAX_LENGTH * 0.6 ? truncated.slice(0, lastSpace) : truncated) + '...'
+}
+
 export default function SearchResultCard({ result, isActive, onFindSimilar }) {
   const scorePercent = Math.round(result.similarity * 100)
   const primaryKbId = result.knowledge_base_ids?.[0]
   const linkTo = primaryKbId
     ? `/kb/${primaryKbId}/podcast/${result.podcast_id}?t=${Math.floor(result.start_time || 0)}`
     : `/podcast/${result.podcast_id}?t=${Math.floor(result.start_time || 0)}`
+
+  const snippetText = truncateSnippet(result.text)
 
   return (
     <Link
@@ -51,8 +63,8 @@ export default function SearchResultCard({ result, isActive, onFindSimilar }) {
         {result.end_time ? ` – ${formatTimestamp(result.end_time)}` : ''}
       </div>
 
-      <p className="serif text-[14px] leading-relaxed dim m-0 line-clamp-3">
-        {result.text}
+      <p className="serif text-[14px] leading-relaxed dim m-0">
+        {snippetText}
       </p>
 
       <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
