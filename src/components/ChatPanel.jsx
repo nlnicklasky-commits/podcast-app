@@ -98,7 +98,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left px-3 py-2.5 text-[13px] serif italic transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:border-[color-mix(in_oklab,var(--accent),transparent_50%)] hover:text-[var(--text)]"
+                  className="text-left px-3 py-2.5 text-[13px] serif italic transition-colors min-h-[44px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:border-[color-mix(in_oklab,var(--accent),transparent_50%)] hover:text-[var(--text)]"
                 >
                   &ldquo;{s}&rdquo;
                 </button>

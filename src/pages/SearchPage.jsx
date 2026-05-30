@@ -292,12 +292,12 @@ export default function SearchPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-6 sm:px-8 py-6 pb-20 max-w-[820px] mx-auto">
+      <div className="px-4 sm:px-6 md:px-8 py-6 pb-20 max-w-[820px] mx-auto">
         {/* Header */}
-        <h1 className="serif text-[28px] font-medium tracking-tight mb-5">Search</h1>
+        <h1 className="serif text-2xl sm:text-[28px] font-medium tracking-tight mb-5">Search</h1>
 
         {/* Tab toggle */}
-        <div className="flex gap-1 mb-4 p-0.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] w-fit">
+        <div className="flex gap-1 mb-4 p-0.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] w-full sm:w-fit">
           <TabButton
             active={activeTab === 'transcripts'}
             onClick={() => handleTabChange('transcripts')}
@@ -360,7 +360,7 @@ export default function SearchPage() {
         {/* Filters (semantic search only) */}
         {activeTab === 'transcripts' && showFilters && (
           <div className="mb-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]">
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
               {/* Scope */}
               <div>
                 <label className="text-[10px] mono mute uppercase tracking-[0.1em] block mb-1.5">Scope</label>
@@ -618,7 +618,7 @@ export default function SearchPage() {
                       <button
                         key={show.id}
                         onClick={() => handleSelectShow(show)}
-                        className="w-full flex gap-3 p-3 text-left transition-colors rounded-[var(--r-lg)] hover:bg-[var(--surface)] border border-transparent hover:border-[var(--border)]"
+                        className="w-full flex gap-3 p-3 text-left transition-colors rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] border border-transparent hover:border-[var(--border)]"
                       >
                         {show.artwork ? (
                           <img
@@ -678,7 +678,7 @@ function TabButton({ active, onClick, icon, label }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-[var(--r-md)] transition-colors ${
+      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-[var(--r-md)] transition-colors flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 ${
         active
           ? 'bg-[var(--bg)] text-[var(--text)] shadow-sm'
           : 'bg-transparent text-[var(--text-mute)] hover:text-[var(--text-dim)]'
@@ -694,7 +694,7 @@ function ScopePill({ label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`px-2.5 py-1 text-[12px] rounded-full transition-colors border ${
+      className={`px-3 py-2 sm:px-2.5 sm:py-1 text-[12px] rounded-full transition-colors border ${
         active
           ? 'bg-[var(--accent-faint)] text-[var(--accent)] border-[var(--accent-soft)]'
           : 'bg-transparent text-[var(--text-dim)] border-[var(--border)] hover:border-[var(--accent-soft)]'
@@ -715,7 +715,7 @@ function EpisodeRow({ episode, navigate }) {
     : ''
 
   return (
-    <div className="p-3 rounded-[var(--r-lg)] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]">
+    <div className="p-3 rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]">
       <p className="text-[14px] font-medium line-clamp-2 leading-snug m-0">
         {decodeHtml(episode.title)}
       </p>

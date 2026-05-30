@@ -97,13 +97,13 @@ export default function Home() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-6 sm:px-10 py-8 pb-20 max-w-[1280px] mx-auto">
+      <div className="px-4 sm:px-6 md:px-10 py-6 sm:py-8 pb-20 max-w-[1280px] mx-auto">
         {/* Hero */}
         <div className="mb-9">
           <div className="text-[11px] mono mute uppercase tracking-[0.12em] mb-2">
             {dateStr}
           </div>
-          <h1 className="serif text-3xl sm:text-[40px] font-medium tracking-tight leading-[1.1] m-0">
+          <h1 className="serif text-2xl sm:text-3xl md:text-[40px] font-medium tracking-tight leading-[1.1] m-0">
             Your library is{' '}
             <span className="text-[var(--accent)]">{Math.round(totalHours)} hours</span> deep
             {processingPodcasts.length > 0 && (
@@ -143,7 +143,7 @@ export default function Home() {
           </div>
         ) : (
           <div
-            className="grid gap-3.5 mb-9 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
+            className="grid gap-3.5 mb-9 grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
           >
             {knowledgeBases.map((kb) => (
               <KBCard
@@ -178,7 +178,7 @@ export default function Home() {
                 <button
                   key={p.id}
                   onClick={() => navigate(`/podcast/${p.id}`)}
-                  className={`flex items-center gap-3.5 px-[18px] py-3.5 w-full text-left transition-colors hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
+                  className={`flex items-center gap-3 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 w-full text-left transition-colors min-h-[44px] hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
                 >
                   {p.thumbnail_url ? (
                     <img
@@ -199,11 +199,11 @@ export default function Home() {
                     </div>
                     <div className="text-[12px] dim mt-0.5">{p.channel || 'Unknown'}</div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-3">
                     <StatusPip status={p.status} />
                     <span className="text-[11px] mono mute">{timeAgo(p.created_at)}</span>
                   </div>
-                  <Icons.Arrow size={14} className="mute" />
+                  <Icons.Arrow size={14} className="mute shrink-0" />
                 </button>
               ))}
             </div>
@@ -248,7 +248,7 @@ function KBCard({ kb, onClick, onDelete }) {
   return (
     <button
       onClick={onClick}
-      className="text-left flex flex-col gap-2.5 p-[18px] transition-all group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
+      className="text-left flex flex-col gap-2.5 p-3.5 sm:p-[18px] transition-all group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
     >
       <div className="flex items-center gap-2.5">
         <KBGlyph name={kb.name} size={28} />
@@ -261,7 +261,7 @@ function KBCard({ kb, onClick, onDelete }) {
           <Icons.X size={12} />
         </button>
       </div>
-      <h3 className="serif text-[19px] leading-tight tracking-tight font-medium m-0">
+      <h3 className="serif text-[17px] sm:text-[19px] leading-tight tracking-tight font-medium m-0">
         {kb.name}
       </h3>
       {kb.description && (

@@ -70,7 +70,7 @@ export default function Layout({ children }) {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -78,9 +78,9 @@ export default function Layout({ children }) {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:relative z-40 lg:z-auto
+          fixed md:relative z-40 md:z-auto
           w-[248px] shrink-0 flex flex-col gap-1.5
-          transition-transform lg:translate-x-0
+          transition-transform duration-200 ease-out md:translate-x-0
           border-r border-[var(--border)] bg-[var(--bg)] px-3 py-4 h-screen
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -97,7 +97,7 @@ export default function Layout({ children }) {
             <div className="text-[10px] mute mono tracking-[0.06em]">v0.4 · personal</div>
           </div>
           {/* Mobile close */}
-          <button className="ml-auto lg:hidden mute p-1" onClick={() => setSidebarOpen(false)}>
+          <button className="ml-auto md:hidden mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setSidebarOpen(false)}>
             <Icons.X size={16} />
           </button>
         </div>
@@ -151,7 +151,7 @@ export default function Layout({ children }) {
               <button
                 key={kb.id}
                 onClick={() => navigate(`/kb/${kb.id}`)}
-                className={`flex items-center gap-2.5 py-[7px] px-2 text-left text-[13px] transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
+                className={`flex items-center gap-2.5 py-[7px] px-2 text-left text-[13px] transition-colors rounded-[var(--r-md)] border min-h-[44px] md:min-h-0 hover:bg-[var(--surface)] ${
                   isActive
                     ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'
                     : 'bg-transparent border-transparent text-[var(--text-dim)]'
@@ -198,9 +198,9 @@ export default function Layout({ children }) {
       <main className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
         {/* Mobile header */}
         <div
-          className="flex lg:hidden items-center gap-3 px-4 py-3 shrink-0 border-b border-[var(--border)] bg-[var(--bg)]"
+          className="flex md:hidden items-center gap-3 px-4 py-3 shrink-0 border-b border-[var(--border)] bg-[var(--bg)]"
         >
-          <button onClick={() => setSidebarOpen(true)} className="mute">
+          <button onClick={() => setSidebarOpen(true)} className="mute min-w-[44px] min-h-[44px] flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -213,7 +213,7 @@ export default function Layout({ children }) {
             </div>
             <span className="font-semibold text-sm">PodBrain</span>
           </div>
-          <button className="ml-auto mute" onClick={() => setPaletteOpen(true)}>
+          <button className="ml-auto mute min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setPaletteOpen(true)}>
             <Icons.Search size={18} />
           </button>
         </div>
@@ -237,7 +237,7 @@ function NavItem({ icon, label, hint, count, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2.5 py-[7px] px-2.5 text-[13px] text-left transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
+      className={`flex items-center gap-2.5 py-[7px] md:py-[7px] min-h-[44px] md:min-h-0 px-2.5 text-[13px] text-left transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
         active
           ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'
           : 'bg-transparent border-transparent text-[var(--text-dim)]'
