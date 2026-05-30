@@ -4,6 +4,7 @@ import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBase
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
+import SynthesisPanel from '../components/SynthesisPanel'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
@@ -17,6 +18,7 @@ export default function KnowledgeBase() {
   const [showAdd, setShowAdd] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
+  const [activeSection, setActiveSection] = useState('episodes')
 
   async function load() {
     try {
@@ -134,47 +136,58 @@ export default function KnowledgeBase() {
             <span>{readyCount} ready</span>
           </div>
 
-          {/* Episode list */}
-          <div className="mt-8">
-            <SectionHeader
-              title={`Episodes · ${podcasts.length}`}
-              action={
-                <button
-                  onClick={() => setShowAdd(true)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-transparent rounded-[var(--r-md)] hover:bg-[var(--surface)]"
-                >
-                  <Icons.Filter size={13} />
-                  Filter
-                </button>
-              }
-            />
-
-            {podcasts.length === 0 ? (
-              <div
-                className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
+          {/* Section tabs */}
+          <div className="flex gap-1 mt-8 mb-[22px] border-b border-[var(--border)]">
+            {[
+              { id: 'episodes', label: `Episodes · ${podcasts.length}`, icon: <Icons.Headphones size={12} /> },
+              { id: 'synthesis', label: 'Synthesis', icon: <Icons.Sparkle size={12} /> },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveSection(t.id)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors border-b-2 ${activeSection === t.id ? 'text-[var(--text)] border-[var(--accent)] font-medium' : 'text-[var(--text-mute)] border-transparent font-normal'}`}
               >
-                <p className="mute mb-1">No podcasts yet</p>
-                <p className="text-sm mute">Search for a podcast to get started.</p>
-                <button
-                  onClick={() => setShowAdd(true)}
-                  className="mt-4 px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
-                >
-                  Add your first podcast
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {podcasts.map((p) => (
-                  <PodcastRow
-                    key={p.id}
-                    podcast={p}
-                    onClick={() => navigate(`/kb/${id}/podcast/${p.id}`)}
-                    onDelete={() => handleDeletePodcast(p.id)}
-                  />
-                ))}
-              </div>
-            )}
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
           </div>
+
+          {/* Episodes tab */}
+          {activeSection === 'episodes' && (
+            <div>
+              {podcasts.length === 0 ? (
+                <div
+                  className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
+                >
+                  <p className="mute mb-1">No podcasts yet</p>
+                  <p className="text-sm mute">Search for a podcast to get started.</p>
+                  <button
+                    onClick={() => setShowAdd(true)}
+                    className="mt-4 px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
+                  >
+                    Add your first podcast
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {podcasts.map((p) => (
+                    <PodcastRow
+                      key={p.id}
+                      podcast={p}
+                      onClick={() => navigate(`/kb/${id}/podcast/${p.id}`)}
+                      onDelete={() => handleDeletePodcast(p.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Synthesis tab */}
+          {activeSection === 'synthesis' && (
+            <SynthesisPanel knowledgeBaseId={id} readyCount={readyCount} />
+          )}
         </div>
       </div>
 

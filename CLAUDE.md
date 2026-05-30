@@ -128,6 +128,13 @@ podcast-app/
 - `entities` (jsonb) — people, companies, etc.
 - `created_at` (timestamptz)
 
+**kb_syntheses** (cross-podcast synthesis per KB)
+- `id` (uuid, PK)
+- `knowledge_base_id` (uuid, FK → knowledge_bases, CASCADE delete)
+- `themes` (jsonb, default '[]') — cross-episode themes
+- `cross_references` (jsonb, default '[]') — agreements, disagreements, complements
+- `generated_at` (timestamptz)
+
 **conversations**
 - `id` (uuid, PK)
 - `knowledge_base_id` (uuid, FK → knowledge_bases)
@@ -186,11 +193,11 @@ podcast-app/
 - [ ] Semantic search within a knowledge base
 - [ ] Search UI with results showing podcast source + timestamp
 
-### Phase 4 — AI Insights ✅ (per-podcast) / 🔲 (KB-level)
+### Phase 4 — AI Insights ✅
 - [x] GPT-4o integration for summarization (via Edge Function)
 - [x] Auto-generate insights per podcast (summary, topics, key points, entities)
 - [x] Insights panel in UI
-- [ ] Knowledge base-level synthesis (themes across all podcasts)
+- [x] Knowledge base-level synthesis (themes across all podcasts)
 
 ### Phase 5 — Chat (RAG) ✅
 - [x] RAG pipeline: query → vector search → context assembly → GPT-4o-mini response
@@ -275,6 +282,7 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 | `podcast-search` | v2 | Search Podcast Index API for shows by term |
 | `podcast-episodes` | v2 | Get episodes for a Podcast Index feed by feed ID |
 | `youtube-search` | v4 | YouTube search via InnerTube API (kept as fallback, not used in primary UI) |
+| `synthesize-kb` | v1 | KB-level cross-podcast synthesis — themes, agreements, disagreements via GPT-4o |
 
 ### Podcast Index API
 
