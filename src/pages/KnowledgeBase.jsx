@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
+import { getInsights } from '../services/processing'
+import { getSynthesis } from '../services/synthesis'
 import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
 import SynthesisPanel from '../components/SynthesisPanel'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
+import { fullKBToMarkdown, downloadMarkdown, slugify } from '../lib/export'
 
 export default function KnowledgeBase() {
   const { id } = useParams()
@@ -20,6 +23,28 @@ export default function KnowledgeBase() {
   const [editName, setEditName] = useState('')
   const [activeSection, setActiveSection] = useState('episodes')
   const [showChat, setShowChat] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExportAll() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // Fetch insights for all ready podcasts in parallel
+      const readyPodcasts = podcasts.filter((p) => p.status === 'ready')
+      const [insightsResults, synthesis] = await Promise.all([
+        Promise.all(readyPodcasts.map((p) => getInsights(p.id).then((ins) => ({ podcast: p, insights: ins })))),
+        getSynthesis(id),
+      ])
+      const podcastInsights = insightsResults.filter((r) => r.insights)
+      const md = fullKBToMarkdown(kb.name, podcastInsights, synthesis)
+      const filename = `${slugify(kb.name)}-full-export.md`
+      downloadMarkdown(md, filename)
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   async function load() {
     try {
@@ -118,6 +143,18 @@ export default function KnowledgeBase() {
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Export all */}
+              {readyCount > 0 && (
+                <button
+                  onClick={handleExportAll}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 px-3 py-2 text-[13px] min-h-[44px] bg-transparent text-[var(--text-dim)] border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)] disabled:opacity-50"
+                  title="Export all insights and synthesis as markdown"
+                >
+                  <Icons.Download size={14} />
+                  <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export All'}</span>
+                </button>
+              )}
               {/* Mobile chat toggle */}
               <button
                 onClick={() => setShowChat(true)}
@@ -197,7 +234,7 @@ export default function KnowledgeBase() {
 
           {/* Synthesis tab */}
           {activeSection === 'synthesis' && (
-            <SynthesisPanel knowledgeBaseId={id} readyCount={readyCount} />
+            <SynthesisPanel knowledgeBaseId={id} kbName={kb.name} readyCount={readyCount} />
           )}
         </div>
       </div>

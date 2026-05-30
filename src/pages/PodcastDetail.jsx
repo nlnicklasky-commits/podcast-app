@@ -254,7 +254,7 @@ export default function PodcastDetail() {
 
         {/* Tab content */}
         {activeTab === 'insights' && (
-          <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} />
+          <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} podcast={podcast} />
         )}
 
         {activeTab === 'transcript' && (

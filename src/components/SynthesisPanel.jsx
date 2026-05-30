@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { generateSynthesis, getSynthesis } from '../services/synthesis'
+import { synthesisToMarkdown, downloadMarkdown, slugify } from '../lib/export'
 import { Tag } from './ui'
 import * as Icons from './Icons'
 import { timeAgo } from '../lib/utils'
 
-export default function SynthesisPanel({ knowledgeBaseId, readyCount }) {
+export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) {
   const [synthesis, setSynthesis] = useState(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -64,12 +65,19 @@ export default function SynthesisPanel({ knowledgeBaseId, readyCount }) {
     )
   }
 
+  function handleExport() {
+    if (!synthesis) return
+    const md = synthesisToMarkdown(kbName || 'Knowledge Base', synthesis)
+    const filename = `${slugify(kbName || 'kb')}-synthesis.md`
+    downloadMarkdown(md, filename)
+  }
+
   const themes = synthesis.themes || []
   const crossRefs = synthesis.cross_references || []
 
   return (
     <div className="flex flex-col gap-[18px]">
-      {/* Header with regenerate */}
+      {/* Header with regenerate + export */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icons.Sparkle size={13} className="text-[var(--accent)]" />
@@ -82,16 +90,26 @@ export default function SynthesisPanel({ knowledgeBaseId, readyCount }) {
             </span>
           )}
         </div>
-        {canGenerate && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)] disabled:opacity-50"
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)]"
+            title="Export synthesis as markdown"
           >
-            <Icons.Sparkle size={11} />
-            {generating ? 'Regenerating...' : 'Regenerate'}
+            <Icons.Download size={11} />
+            Export
           </button>
-        )}
+          {canGenerate && (
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)] disabled:opacity-50"
+            >
+              <Icons.Sparkle size={11} />
+              {generating ? 'Regenerating...' : 'Regenerate'}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (

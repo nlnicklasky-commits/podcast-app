@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { getInsights } from '../services/processing'
+import { insightsToMarkdown, downloadMarkdown, slugify } from '../lib/export'
 import { Tag } from './ui'
 import * as Icons from './Icons'
 
-export default function InsightsPanel({ podcastId, podcastTitle }) {
+export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
   const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -13,6 +14,14 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [podcastId])
+
+  function handleExport() {
+    if (!insights) return
+    const podData = podcast || { title: podcastTitle }
+    const md = insightsToMarkdown(podData, insights)
+    const filename = `${slugify(podData.title || 'podcast')}-insights.md`
+    downloadMarkdown(md, filename)
+  }
 
   if (loading) {
     return <div className="mute py-8 text-center text-sm">Loading insights...</div>
@@ -28,6 +37,18 @@ export default function InsightsPanel({ podcastId, podcastTitle }) {
 
   return (
     <div className="flex flex-col gap-[18px]">
+      {/* Export button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)]"
+          title="Export insights as markdown"
+        >
+          <Icons.Download size={11} />
+          Export
+        </button>
+      </div>
+
       {/* Summary */}
       {insights.summary && (
         <div

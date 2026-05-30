@@ -45,3 +45,4 @@ export const Spark = makeIcon(<><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5
 export const Globe = makeIcon(<><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>)
 export const FileText = makeIcon(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" /></>)
 export const Mic = makeIcon(<><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" /></>)
+export const Download = makeIcon(<><path d="M12 5v10M7 12l5 5 5-5" /><path d="M5 19h14" /></>)
