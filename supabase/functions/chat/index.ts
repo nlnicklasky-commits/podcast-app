@@ -138,6 +138,19 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Extract user_id from the incoming JWT for user-scoped writes
+    let callingUserId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: { user } } = await userClient.auth.getUser();
+      callingUserId = user?.id ?? null;
+    }
+
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
       return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
@@ -319,12 +332,15 @@ Deno.serve(async (req: Request) => {
     // 8. Save messages to conversation
     let convId = conversation_id;
     if (!convId) {
+      const convInsert: Record<string, unknown> = {
+        knowledge_base_id,
+        title: question.slice(0, 100),
+      };
+      if (callingUserId) convInsert.user_id = callingUserId;
+
       const { data: conv } = await supabase
         .from("conversations")
-        .insert({
-          knowledge_base_id,
-          title: question.slice(0, 100),
-        })
+        .insert(convInsert)
         .select("id")
         .limit(1);
       convId = conv?.[0]?.id;

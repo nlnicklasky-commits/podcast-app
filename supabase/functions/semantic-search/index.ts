@@ -142,6 +142,19 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Extract user_id from the incoming JWT for user-scoped writes
+    let callingUserId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: { user } } = await userClient.auth.getUser();
+      callingUserId = user?.id ?? null;
+    }
+
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
       return errorResponse(
@@ -322,12 +335,15 @@ Deno.serve(async (req: Request) => {
     });
 
     // 6. Save to search_history
-    await supabase.from("search_history").insert({
+    const historyEntry: Record<string, unknown> = {
       query: query.trim(),
       result_count: results.length,
       scope_type: scopeType,
       scope_id: scopeId,
-    });
+    };
+    if (callingUserId) historyEntry.user_id = callingUserId;
+
+    await supabase.from("search_history").insert(historyEntry);
 
     const queryTimeMs = Math.round(performance.now() - startTime);
 
