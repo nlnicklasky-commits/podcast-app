@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase } from '../services/knowledgeBases'
 import { listAllPodcasts, addPodcastFromIndex } from '../services/podcasts'
+import { getRecentProgress } from '../services/playback'
 import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { formatDate, formatDuration, timeAgo } from '../lib/utils'
@@ -16,15 +17,29 @@ export default function Home() {
   const [showCreate, setShowCreate] = useState(false)
   const [showAddPodcast, setShowAddPodcast] = useState(false)
   const [error, setError] = useState(null)
+  const [progressMap, setProgressMap] = useState({})
 
   async function load() {
     try {
-      const [kbData, podcastData] = await Promise.all([
+      const [kbData, podcastData, progressData] = await Promise.all([
         listKnowledgeBases(),
         listAllPodcasts(),
+        getRecentProgress(),
       ])
       setKnowledgeBases(kbData)
       setPodcasts(podcastData)
+
+      // Build a map of podcast_id -> progress percentage
+      const map = {}
+      for (const p of progressData) {
+        if (p.duration_seconds && p.duration_seconds > 0) {
+          map[p.podcast_id] = {
+            percent: Math.min(100, Math.round((p.position_seconds / p.duration_seconds) * 100)),
+            completed: p.completed,
+          }
+        }
+      }
+      setProgressMap(map)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -174,38 +189,54 @@ export default function Home() {
             <div
               className="overflow-hidden bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
             >
-              {recentPodcasts.map((p, i) => (
-                <button
-                  key={p.id}
-                  onClick={() => navigate(`/podcast/${p.id}`)}
-                  className={`flex items-center gap-3 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 w-full text-left transition-colors min-h-[44px] hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
-                >
-                  {p.thumbnail_url ? (
-                    <img
-                      src={p.thumbnail_url}
-                      alt=""
-                      className="w-10 h-10 object-cover shrink-0 rounded-[var(--r-sm)]"
-                    />
-                  ) : (
-                    <div
-                      className="w-10 h-10 shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
-                    >
-                      <Icons.Headphones size={16} />
+              {recentPodcasts.map((p, i) => {
+                const prog = progressMap[p.id]
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => navigate(`/podcast/${p.id}`)}
+                    className={`relative flex items-center gap-3 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 w-full text-left transition-colors min-h-[44px] hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
+                  >
+                    {p.thumbnail_url ? (
+                      <img
+                        src={p.thumbnail_url}
+                        alt=""
+                        className="w-10 h-10 object-cover shrink-0 rounded-[var(--r-sm)]"
+                      />
+                    ) : (
+                      <div
+                        className="w-10 h-10 shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
+                      >
+                        <Icons.Headphones size={16} />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] truncate text-[var(--text)]">
+                        {p.title || 'Untitled'}
+                      </div>
+                      <div className="text-[12px] dim mt-0.5">{p.channel || 'Unknown'}</div>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] truncate text-[var(--text)]">
-                      {p.title || 'Untitled'}
+                    <div className="hidden sm:flex items-center gap-3">
+                      <StatusPip status={p.status} />
+                      <span className="text-[11px] mono mute">{timeAgo(p.created_at)}</span>
                     </div>
-                    <div className="text-[12px] dim mt-0.5">{p.channel || 'Unknown'}</div>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-3">
-                    <StatusPip status={p.status} />
-                    <span className="text-[11px] mono mute">{timeAgo(p.created_at)}</span>
-                  </div>
-                  <Icons.Arrow size={14} className="mute shrink-0" />
-                </button>
-              ))}
+                    <Icons.Arrow size={14} className="mute shrink-0" />
+
+                    {/* Playback progress bar */}
+                    {prog && !prog.completed && prog.percent > 0 && (
+                      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--border-soft)]">
+                        <div
+                          className="h-full bg-[var(--accent)] transition-all"
+                          style={{ width: `${prog.percent}%` }}
+                        />
+                      </div>
+                    )}
+                    {prog?.completed && (
+                      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--accent)] opacity-40" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </>
         )}

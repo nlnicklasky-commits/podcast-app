@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
+import { getProgress, saveProgress } from '../services/playback'
+import { useAuth } from '../lib/useAuth'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
@@ -10,6 +12,10 @@ import ProcessingLog from '../components/ProcessingLog'
 import { StatusPip, Tag } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
+
+const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
+const SAVE_DEBOUNCE_MS = 10_000
+const COMPLETION_THRESHOLD = 0.9
 
 export default function PodcastDetail() {
   const { kbId, podcastId } = useParams()
@@ -25,6 +31,128 @@ export default function PodcastDetail() {
   const [processing, setProcessing] = useState(false)
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
+
+  // Playback state
+  const { user } = useAuth()
+  const audioRef = useRef(null)
+  const [savedProgress, setSavedProgress] = useState(null)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const lastSaveRef = useRef(0)
+  const saveTimerRef = useRef(null)
+
+  // Persist progress to Supabase (debounced)
+  const persistProgress = useCallback(
+    async (force = false) => {
+      const audio = audioRef.current
+      if (!audio || !user || !podcastId) return
+      const now = Date.now()
+      if (!force && now - lastSaveRef.current < SAVE_DEBOUNCE_MS) return
+      lastSaveRef.current = now
+
+      const position = audio.currentTime
+      const duration = audio.duration || null
+      const completed = duration ? position / duration >= COMPLETION_THRESHOLD : false
+
+      await saveProgress(podcastId, {
+        positionSeconds: position,
+        durationSeconds: duration,
+        playbackSpeed: audio.playbackRate,
+        completed,
+      })
+    },
+    [user, podcastId],
+  )
+
+  // Load saved progress on mount
+  useEffect(() => {
+    if (!user || !podcastId) return
+    let cancelled = false
+
+    async function loadProgress() {
+      const progress = await getProgress(podcastId)
+      if (!cancelled && progress) {
+        setSavedProgress(progress)
+        setPlaybackSpeed(progress.playback_speed || 1)
+      }
+    }
+    loadProgress()
+
+    return () => { cancelled = true }
+  }, [user, podcastId])
+
+  // Set audio position & speed once audio element is ready and progress is loaded
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !savedProgress) return
+
+    function onLoadedMetadata() {
+      if (savedProgress.position_seconds > 0 && !savedProgress.completed) {
+        audio.currentTime = savedProgress.position_seconds
+      }
+      audio.playbackRate = savedProgress.playback_speed || 1
+    }
+
+    // If already loaded (e.g. cached), apply immediately
+    if (audio.readyState >= 1) {
+      onLoadedMetadata()
+    } else {
+      audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true })
+    }
+
+    return () => audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+  }, [savedProgress])
+
+  // Auto-save every 10s while playing
+  useEffect(() => {
+    if (!isPlaying) return
+
+    saveTimerRef.current = setInterval(() => {
+      persistProgress(true)
+    }, SAVE_DEBOUNCE_MS)
+
+    return () => clearInterval(saveTimerRef.current)
+  }, [isPlaying, persistProgress])
+
+  // Save on pause
+  function handlePause() {
+    setIsPlaying(false)
+    persistProgress(true)
+  }
+
+  function handlePlay() {
+    setIsPlaying(true)
+  }
+
+  // Save on page visibility change (tab switch / close)
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'hidden') {
+        persistProgress(true)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [persistProgress])
+
+  // Check completion on timeupdate
+  function handleTimeUpdate() {
+    const audio = audioRef.current
+    if (!audio || !audio.duration) return
+    if (audio.currentTime / audio.duration >= COMPLETION_THRESHOLD) {
+      persistProgress(true)
+    }
+  }
+
+  // Speed selector
+  function cycleSpeed() {
+    const audio = audioRef.current
+    if (!audio) return
+    const idx = PLAYBACK_SPEEDS.indexOf(playbackSpeed)
+    const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length]
+    setPlaybackSpeed(next)
+    audio.playbackRate = next
+  }
 
   useEffect(() => {
     async function load() {
@@ -237,6 +365,47 @@ export default function PodcastDetail() {
             progress={podcast.progress}
           />
         </div>
+
+        {/* Audio Player */}
+        {podcast.enclosure_url && (
+          <div className="p-3 sm:p-4 mb-4 sm:mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]">
+            {/* Resume indicator */}
+            {user && savedProgress && savedProgress.position_seconds > 0 && !savedProgress.completed && (
+              <div className="flex items-center gap-2 mb-3 text-[12px] mono text-[var(--accent)]">
+                <Icons.Play size={10} />
+                Resume from {formatTimestamp(savedProgress.position_seconds)}
+              </div>
+            )}
+            {user && savedProgress?.completed && (
+              <div className="flex items-center gap-2 mb-3 text-[12px] mono text-[var(--success, var(--accent))]">
+                <Icons.Check size={10} />
+                Completed
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <audio
+                ref={audioRef}
+                src={podcast.enclosure_url}
+                className="flex-1 h-8"
+                controls
+                preload="metadata"
+                onPlay={handlePlay}
+                onPause={handlePause}
+                onTimeUpdate={handleTimeUpdate}
+              />
+              {user && (
+                <button
+                  onClick={cycleSpeed}
+                  className="shrink-0 px-2.5 py-1 text-[12px] mono font-semibold transition-colors bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+                  title="Playback speed"
+                >
+                  {playbackSpeed}x
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 mb-[22px] border-b border-[var(--border)]">
