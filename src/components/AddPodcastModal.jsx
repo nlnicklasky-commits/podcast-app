@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback } from 'react'
 import { searchShows, getEpisodes } from '../services/podcastIndex'
+import { bulkAddEpisodesFromIndex } from '../services/podcasts'
+import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
 
-export default function AddPodcastModal({ onClose, onAddFromIndex }) {
+export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBaseId = null }) {
   const [step, setStep] = useState('shows')
   const [query, setQuery] = useState('')
   const [shows, setShows] = useState([])
@@ -13,6 +15,10 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
+
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
 
   const handleSearch = useCallback(async (q) => {
     if (!q.trim() || q.trim().length < 2) {
@@ -46,7 +52,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
     setLoadingEpisodes(true)
     setError('')
     try {
-      const eps = await getEpisodes(show.id, show.feedUrl)
+      const { episodes: eps } = await getEpisodes(show.id, show.feedUrl)
       setEpisodes(eps)
     } catch (err) {
       setError(err.message || 'Failed to load episodes')
@@ -61,6 +67,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
     setSelectedShow(null)
     setEpisodes([])
     setError('')
+    setBulkMenuOpen(false)
   }
 
   async function handleSelectEpisode(episode, method) {
@@ -80,6 +87,41 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
     } catch (err) {
       setError(err.message || 'Failed to add episode')
       setLoading(false)
+    }
+  }
+
+  async function handleBulkAdd(count) {
+    setBulkAdding(true)
+    setBulkMenuOpen(false)
+    setError('')
+    setBulkProgress({ current: 0, total: count || episodes.length })
+
+    try {
+      const sorted = [...episodes].sort((a, b) => (b.datePublished || 0) - (a.datePublished || 0))
+      const toAdd = count ? sorted.slice(0, count) : sorted
+
+      const showMetadata = {
+        title: selectedShow?.title || '',
+        artwork: selectedShow?.artwork || '',
+        feedUrl: selectedShow?.feedUrl || '',
+        feedId: selectedShow?.id,
+      }
+
+      const result = await bulkAddEpisodesFromIndex(
+        knowledgeBaseId,
+        toAdd,
+        showMetadata,
+        (current, total) => setBulkProgress({ current, total })
+      )
+
+      setBulkProgress({ current: result.added + result.skipped, total: toAdd.length, done: true, ...result })
+      window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+
+      setTimeout(() => onClose(), 1500)
+    } catch (err) {
+      setError(err.message || 'Failed to add episodes')
+      setBulkAdding(false)
+      setBulkProgress(null)
     }
   }
 
@@ -119,6 +161,12 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
     return str.length > len ? str.slice(0, len) + '...' : str
   }
 
+  const bulkOptions = [
+    { label: 'Recent 10', count: 10 },
+    { label: 'Recent 20', count: 20 },
+    { label: 'Recent 50', count: 50 },
+  ].filter(opt => opt.count < episodes.length)
+
   return (
     <div
       className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 sm:p-5 bg-black/55 backdrop-blur-[4px]"
@@ -134,7 +182,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
         >
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {step === 'episodes' && (
-              <button onClick={handleBackToShows} className="mute p-0.5">
+              <button onClick={handleBackToShows} className="mute p-0.5" disabled={bulkAdding}>
                 <Icons.Back size={16} />
               </button>
             )}
@@ -216,6 +264,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
                           {truncate(decodeHtml(show.description), 80)}
                         </p>
                       </div>
+                      <SubscribeButton show={show} compact />
                       <Icons.Arrow size={14} className="mute shrink-0 mt-2" />
                     </button>
                   ))}
@@ -274,7 +323,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
                         {hasTranscript(ep) && (
                           <button
                             onClick={() => handleSelectEpisode(ep, 'transcript')}
-                            disabled={loading}
+                            disabled={loading || bulkAdding}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)]"
                           >
                             <Icons.FileText size={12} />
@@ -283,7 +332,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
                         )}
                         <button
                           onClick={() => handleSelectEpisode(ep, 'audio')}
-                          disabled={loading}
+                          disabled={loading || bulkAdding}
                           className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 rounded-[var(--r-sm)] ${
                             hasTranscript(ep)
                               ? 'bg-[var(--surface)] text-[var(--text-mute)] border border-[var(--border)]'
@@ -298,7 +347,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
                   ))}
                 </div>
 
-                {loading && (
+                {loading && !bulkAdding && (
                   <div
                     className="flex items-center justify-center py-3 mt-2 shrink-0 border-t border-[var(--border)]"
                   >
@@ -306,6 +355,62 @@ export default function AddPodcastModal({ onClose, onAddFromIndex }) {
                       className="w-3.5 h-3.5 rounded-full border-2 animate-spin mr-2 border-[var(--accent)] border-t-transparent"
                     />
                     <span className="text-[13px] mute">Adding episode...</span>
+                  </div>
+                )}
+
+                {/* Bulk add footer */}
+                {!loadingEpisodes && episodes.length > 1 && !loading && (
+                  <div className="shrink-0 pt-3 mt-2 border-t border-[var(--border)]">
+                    {bulkAdding && bulkProgress ? (
+                      <div className="space-y-2">
+                        <div className="h-1.5 rounded-full overflow-hidden bg-[var(--surface)]">
+                          <div
+                            className="h-full rounded-full transition-all duration-300 bg-[var(--accent)]"
+                            style={{ width: `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[12px] mute text-center m-0">
+                          {bulkProgress.done
+                            ? `Added ${bulkProgress.added} episode${bulkProgress.added !== 1 ? 's' : ''}${bulkProgress.skipped ? ` (${bulkProgress.skipped} already in library)` : ''}`
+                            : `Adding ${bulkProgress.current} / ${bulkProgress.total} episodes…`
+                          }
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleBulkAdd(null)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)] min-h-[36px]"
+                        >
+                          <Icons.Plus size={13} />
+                          Add All ({episodes.length})
+                        </button>
+                        {bulkOptions.length > 0 && (
+                          <div className="relative">
+                            <button
+                              onClick={() => setBulkMenuOpen(!bulkMenuOpen)}
+                              className="flex items-center justify-center px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] min-h-[36px]"
+                            >
+                              Recent
+                              <Icons.Arrow size={10} className="ml-1.5 rotate-90" />
+                            </button>
+                            {bulkMenuOpen && (
+                              <div className="absolute bottom-full right-0 mb-1 py-1 min-w-[120px] bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] shadow-lg z-10">
+                                {bulkOptions.map(opt => (
+                                  <button
+                                    key={opt.count}
+                                    onClick={() => handleBulkAdd(opt.count)}
+                                    className="w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--surface)]"
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>

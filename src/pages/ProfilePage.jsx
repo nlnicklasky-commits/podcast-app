@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
+import { listSubscriptions, unsubscribe, updateSubscription } from '../services/subscriptions'
+import OPMLImportModal from '../components/OPMLImportModal'
 import * as Icons from '../components/Icons'
 
 export default function ProfilePage() {
@@ -12,6 +14,16 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [error, setError] = useState(null)
   const [deleteResult, setDeleteResult] = useState(null)
+  const [subscriptions, setSubscriptions] = useState([])
+  const [subsLoading, setSubsLoading] = useState(true)
+  const [showOPML, setShowOPML] = useState(false)
+
+  useEffect(() => {
+    listSubscriptions()
+      .then(setSubscriptions)
+      .catch(() => {})
+      .finally(() => setSubsLoading(false))
+  }, [])
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -117,6 +129,86 @@ export default function ProfilePage() {
           </button>
         </div>
 
+        {/* Subscriptions */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] p-5 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[12px] mono mute uppercase tracking-[0.08em]">
+              Feed Subscriptions
+            </div>
+            <button
+              onClick={() => setShowOPML(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium bg-[var(--bg)] border border-[var(--border)] rounded-[var(--r-sm)] transition-colors hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
+            >
+              <Icons.Download size={11} />
+              Import OPML
+            </button>
+          </div>
+
+          {subsLoading && (
+            <p className="text-[13px] mute">Loading...</p>
+          )}
+
+          {!subsLoading && subscriptions.length === 0 && (
+            <p className="text-[13px] dim">
+              No subscriptions yet. Subscribe to feeds from the Add Podcast search to auto-ingest new episodes.
+            </p>
+          )}
+
+          {!subsLoading && subscriptions.length > 0 && (
+            <div className="space-y-2">
+              {subscriptions.map(sub => (
+                <div
+                  key={sub.id}
+                  className="flex items-center gap-3 p-2.5 bg-[var(--bg)] border border-[var(--border-soft)] rounded-[var(--r-md)]"
+                >
+                  {sub.feed_artwork && (
+                    <img
+                      src={sub.feed_artwork}
+                      alt=""
+                      className="w-9 h-9 rounded-[var(--r-sm)] object-cover shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium truncate m-0">{sub.feed_title || 'Unknown Feed'}</p>
+                    <p className="text-[11px] mute m-0 mt-0.5">
+                      {sub.feed_author}
+                      {sub.last_checked_at && (
+                        <> · checked {new Date(sub.last_checked_at).toLocaleDateString()}</>
+                      )}
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-1.5 shrink-0 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sub.auto_process}
+                      onChange={async (e) => {
+                        const updated = await updateSubscription(sub.id, {
+                          auto_process: e.target.checked,
+                        })
+                        setSubscriptions(prev =>
+                          prev.map(s => s.id === sub.id ? { ...s, ...updated } : s)
+                        )
+                      }}
+                      className="w-3.5 h-3.5 accent-[var(--accent)]"
+                    />
+                    <span className="text-[11px] mute">Auto-process</span>
+                  </label>
+                  <button
+                    onClick={async () => {
+                      await unsubscribe(sub.id)
+                      setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
+                    }}
+                    className="p-1.5 mute hover:text-[var(--error)] transition-colors shrink-0"
+                    title="Unsubscribe"
+                  >
+                    <Icons.X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Danger zone */}
         <div className="bg-[var(--surface)] border border-[color-mix(in_oklab,var(--error),transparent_60%)] rounded-[var(--r-lg)] p-5">
           <div className="text-[12px] mono uppercase tracking-[0.08em] mb-2 text-[var(--error)]">
@@ -172,6 +264,15 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {showOPML && (
+        <OPMLImportModal
+          onClose={() => {
+            setShowOPML(false)
+            listSubscriptions().then(setSubscriptions).catch(() => {})
+          }}
+        />
+      )}
     </div>
   )
 }

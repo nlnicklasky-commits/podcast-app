@@ -268,6 +268,7 @@ export default function KnowledgeBase() {
         <AddPodcastModal
           onClose={() => setShowAdd(false)}
           onAddFromIndex={handleAddFromIndex}
+          knowledgeBaseId={id}
         />
       )}
     </div>

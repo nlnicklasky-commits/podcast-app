@@ -8,6 +8,7 @@ import KnowledgeBase from './pages/KnowledgeBase'
 import PodcastDetail from './pages/PodcastDetail'
 import SearchPage from './pages/SearchPage'
 import ProfilePage from './pages/ProfilePage'
+import DiscoverPage from './pages/DiscoverPage'
 import AuthPage from './pages/AuthPage'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
@@ -68,6 +69,7 @@ export default function App() {
                     <Routes>
                       <Route path="/" element={<Home />} />
                       <Route path="/search" element={<SearchPage />} />
+                      <Route path="/discover" element={<DiscoverPage />} />
                       <Route path="/kb/:id" element={<KnowledgeBase />} />
                       <Route path="/kb/:kbId/podcast/:podcastId" element={<PodcastDetail />} />
                       <Route path="/podcast/:podcastId" element={<PodcastDetail />} />

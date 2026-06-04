@@ -20,7 +20,8 @@ function getCorsHeaders(request: Request): Record<string, string> {
   };
 }
 
-const MAX_EPISODES = 50;
+const MAX_EPISODES = 1000;
+const DEFAULT_EPISODES = 50;
 const TIMEOUT_PODCAST_INDEX = 30 * 1000; // 30 seconds
 const TIMEOUT_RSS_FEED = 30 * 1000;      // 30 seconds
 
@@ -128,16 +129,26 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Request body must be valid JSON", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
-    const { feed_id, feed_url } = body;
+    const { feed_id, feed_url, max, since } = body;
     if (!feed_id) {
       return errorResponse("feed_id is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
-    const data = await podcastIndexFetch("/episodes/byfeedid", {
+    const requestedMax = Math.min(
+      Math.max(1, Number(max) || DEFAULT_EPISODES),
+      MAX_EPISODES,
+    );
+
+    const piParams: Record<string, string> = {
       id: String(feed_id),
-      max: String(MAX_EPISODES),
+      max: String(requestedMax),
       fulltext: "1",
-    });
+    };
+    if (since && Number(since) > 0) {
+      piParams.since = String(Math.floor(Number(since)));
+    }
+
+    const data = await podcastIndexFetch("/episodes/byfeedid", piParams);
 
     // Fetch RSS feed to extract podcast:transcript and podcast:locked tags (PI API doesn't expose them)
     const transcriptMap = new Map<string, { url: string; type: string }[]>();
@@ -241,9 +252,15 @@ Deno.serve(async (req: Request) => {
       },
     );
 
-    return new Response(JSON.stringify({ episodes, locked: feedLocked }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const hasMore = episodes.length >= requestedMax;
+    const oldestTimestamp = episodes.length > 0
+      ? Math.min(...episodes.map((e: { datePublished: number }) => e.datePublished))
+      : null;
+
+    return new Response(
+      JSON.stringify({ episodes, locked: feedLocked, hasMore, oldestTimestamp }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     console.error("Podcast episodes error:", err);
     const error = err as Error & { code?: string; httpStatus?: number };

@@ -177,6 +177,107 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
 }
 
 /**
+ * Bulk-add episodes from Podcast Index, with batch dedup and optional KB linking.
+ * All episodes are inserted with status='pending' (metadata-first, no auto-processing).
+ *
+ * @param {string|null} knowledgeBaseId - KB to link episodes to, or null for standalone
+ * @param {Array} episodes - Episode objects from Podcast Index API
+ * @param {{ title: string, artwork: string, feedUrl: string, feedId: number }} showMetadata
+ * @param {(current: number, total: number) => void} onProgress - Progress callback
+ * @returns {{ added: number, skipped: number, podcasts: Array }}
+ */
+export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMetadata, onProgress) {
+  if (!episodes || episodes.length === 0) return { added: 0, skipped: 0, podcasts: [] }
+
+  const userId = await getCurrentUserId()
+  const total = episodes.length
+  const BATCH_SIZE = 50
+
+  const episodeIndexIds = episodes
+    .map(ep => ep.id)
+    .filter(Boolean)
+
+  const { data: existingRows, error: lookupError } = await supabase
+    .from('podcasts')
+    .select('id, episode_index_id')
+    .in('episode_index_id', episodeIndexIds)
+
+  if (lookupError) throw new Error(`Failed to check existing episodes: ${lookupError.message}`)
+
+  const existingMap = new Map()
+  for (const row of (existingRows || [])) {
+    existingMap.set(Number(row.episode_index_id), row.id)
+  }
+
+  const toInsert = []
+  const alreadyExisting = []
+
+  for (const ep of episodes) {
+    if (ep.id && existingMap.has(ep.id)) {
+      alreadyExisting.push({ episodeIndexId: ep.id, podcastId: existingMap.get(ep.id) })
+    } else {
+      toInsert.push({
+        title: ep.title,
+        channel: showMetadata.title,
+        thumbnail_url: ep.image || showMetadata.artwork,
+        url: ep.link || ep.enclosureUrl,
+        enclosure_url: ep.enclosureUrl,
+        podcast_index_id: showMetadata.feedId,
+        episode_index_id: ep.id,
+        feed_url: showMetadata.feedUrl || null,
+        source: 'podcast_index',
+        duration_seconds: ep.duration || null,
+        status: 'pending',
+        user_id: userId,
+      })
+    }
+  }
+
+  const insertedPodcasts = []
+  let processed = alreadyExisting.length
+
+  for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+    const batch = toInsert.slice(i, i + BATCH_SIZE)
+    const { data, error } = await supabase
+      .from('podcasts')
+      .insert(batch)
+      .select()
+
+    if (error) throw new Error(`Failed to insert episode batch: ${error.message}`)
+    insertedPodcasts.push(...(data || []))
+    processed += batch.length
+    if (onProgress) onProgress(processed, total)
+  }
+
+  if (knowledgeBaseId) {
+    const allPodcastIds = [
+      ...insertedPodcasts.map(p => p.id),
+      ...alreadyExisting.map(e => e.podcastId),
+    ]
+
+    const kbLinks = allPodcastIds.map(podcastId => ({
+      knowledge_base_id: knowledgeBaseId,
+      podcast_id: podcastId,
+    }))
+
+    for (let i = 0; i < kbLinks.length; i += BATCH_SIZE) {
+      const batch = kbLinks.slice(i, i + BATCH_SIZE)
+      const { error } = await supabase
+        .from('knowledge_base_podcasts')
+        .upsert(batch, { onConflict: 'knowledge_base_id,podcast_id', ignoreDuplicates: true })
+
+      if (error) throw new Error(`Failed to link episodes to knowledge base: ${error.message}`)
+    }
+  }
+
+  return {
+    added: insertedPodcasts.length,
+    skipped: alreadyExisting.length,
+    podcasts: insertedPodcasts,
+  }
+}
+
+/**
  * Remove a podcast from a knowledge base.
  *
  * This unlinks the podcast from the KB. If no other KBs reference it,

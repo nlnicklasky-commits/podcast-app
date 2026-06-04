@@ -265,7 +265,7 @@ export default function SearchPage() {
     setLoadingEpisodes(true)
     setError(null)
     try {
-      const eps = await getEpisodes(show.id, show.feedUrl)
+      const { episodes: eps } = await getEpisodes(show.id, show.feedUrl)
       setEpisodes(eps)
     } catch (err) {
       setError(err.message || 'Failed to load episodes')

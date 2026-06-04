@@ -129,6 +129,12 @@ export default function Layout({ children }) {
           active={location.pathname === '/search'}
           onClick={() => navigate('/search')}
         />
+        <NavItem
+          icon={<Icons.Compass size={15} />}
+          label="Discover"
+          active={location.pathname === '/discover'}
+          onClick={() => navigate('/discover')}
+        />
 
         {/* KB section */}
         <div className="flex items-center justify-between px-2 pt-4 pb-1.5">
