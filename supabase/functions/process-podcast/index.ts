@@ -24,7 +24,7 @@ function getCorsHeaders(request: Request): Record<string, string> {
 // Models
 const WHISPER_MODEL = "whisper-large-v3";
 const EMBEDDING_MODEL = "text-embedding-3-small";
-const INSIGHTS_MODEL = "llama-3.3-70b-versatile";
+const INSIGHTS_MODEL = "gpt-4o-mini";
 
 // Limits
 const MAX_AUDIO_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB (Whisper limit)
@@ -147,9 +147,6 @@ Deno.serve(async (req: Request) => {
       return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
     const groqKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqKey) {
-      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
-    }
 
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
@@ -524,7 +521,7 @@ Deno.serve(async (req: Request) => {
 
     // 6. Generate insights via Groq Llama 3.3 70B
     await setProgress(PROGRESS.INSIGHTS_START);
-    await log("processing", `Generating insights with ${INSIGHTS_MODEL} on Groq...`);
+    await log("processing", `Generating insights with ${INSIGHTS_MODEL}...`);
 
     const truncated = fullText.length > INSIGHTS_MAX_CHARS
       ? fullText.slice(0, INSIGHTS_MAX_CHARS) + "\n[...transcript truncated...]"
@@ -533,11 +530,11 @@ Deno.serve(async (req: Request) => {
     let insightResponse: Response;
     try {
       insightResponse = await fetchWithTimeout(
-        "https://api.groq.com/openai/v1/chat/completions",
+        "https://api.openai.com/v1/chat/completions",
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${groqKey}`,
+            Authorization: `Bearer ${openaiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -571,7 +568,7 @@ Deno.serve(async (req: Request) => {
     if (!insightResponse.ok) {
       const errText = await insightResponse.text();
       throw Object.assign(
-        new Error(`Groq insights error: ${insightResponse.status} ${errText}`),
+        new Error(`OpenAI insights error: ${insightResponse.status} ${errText}`),
         { code: ErrorCode.INSIGHTS_FAILED, httpStatus: 500 },
       );
     }
