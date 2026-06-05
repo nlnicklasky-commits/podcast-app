@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { searchShows, getEpisodes } from '../services/podcastIndex'
+import { searchShows, getEpisodes, getAllEpisodes } from '../services/podcastIndex'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
@@ -124,6 +124,53 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       setBulkProgress({ current: result.added + result.skipped, total: toAdd.length, done: true, ...result })
       window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
 
+      setTimeout(() => onClose(), 1500)
+    } catch (err) {
+      setError(err.message || 'Failed to add episodes')
+      setBulkAdding(false)
+      setBulkProgress(null)
+    }
+  }
+
+  async function handleAllTranscripts() {
+    setBulkAdding(true)
+    setBulkMenuOpen(false)
+    setError('')
+    setBulkProgress({ current: 0, total: 0, phase: 'fetching' })
+
+    try {
+      const allEps = await getAllEpisodes(
+        selectedShow?.id,
+        selectedShow?.feedUrl,
+        (count) => setBulkProgress({ current: 0, total: 0, phase: 'fetching', fetched: count })
+      )
+
+      const withTranscript = allEps.filter(ep => ep.transcripts?.length > 0 || ep.transcriptUrl)
+      if (withTranscript.length === 0) {
+        setError(`Found ${allEps.length} episodes but none have transcripts`)
+        setBulkAdding(false)
+        setBulkProgress(null)
+        return
+      }
+
+      setBulkProgress({ current: 0, total: withTranscript.length, phase: 'adding' })
+
+      const showMetadata = {
+        title: selectedShow?.title || '',
+        artwork: selectedShow?.artwork || '',
+        feedUrl: selectedShow?.feedUrl || '',
+        feedId: selectedShow?.id,
+      }
+
+      const result = await bulkAddEpisodesFromIndex(
+        knowledgeBaseId,
+        withTranscript,
+        showMetadata,
+        (current, total) => setBulkProgress({ current, total, phase: 'adding' })
+      )
+
+      setBulkProgress({ current: result.added + result.skipped, total: withTranscript.length, done: true, ...result })
+      window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
       setTimeout(() => onClose(), 1500)
     } catch (err) {
       setError(err.message || 'Failed to add episodes')
@@ -359,16 +406,20 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                   <div className="shrink-0 pt-3 mt-2 border-t border-[var(--border)]">
                     {bulkAdding && bulkProgress ? (
                       <div className="space-y-2">
-                        <div className="h-1.5 rounded-full overflow-hidden bg-[var(--surface)]">
-                          <div
-                            className="h-full rounded-full transition-all duration-300 bg-[var(--accent)]"
-                            style={{ width: `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}%` }}
-                          />
-                        </div>
+                        {bulkProgress.phase !== 'fetching' && (
+                          <div className="h-1.5 rounded-full overflow-hidden bg-[var(--surface)]">
+                            <div
+                              className="h-full rounded-full transition-all duration-300 bg-[var(--accent)]"
+                              style={{ width: `${bulkProgress.total ? Math.round((bulkProgress.current / bulkProgress.total) * 100) : 0}%` }}
+                            />
+                          </div>
+                        )}
                         <p className="text-[12px] mute text-center m-0">
                           {bulkProgress.done
                             ? `Added ${bulkProgress.added} episode${bulkProgress.added !== 1 ? 's' : ''}${bulkProgress.autoProcessing ? ` · ${bulkProgress.autoProcessing} auto-processing` : ''}${bulkProgress.skipped ? ` · ${bulkProgress.skipped} already in library` : ''}`
-                            : `Adding ${bulkProgress.current} / ${bulkProgress.total} episodes…`
+                            : bulkProgress.phase === 'fetching'
+                              ? `Fetching all episodes${bulkProgress.fetched ? ` (${bulkProgress.fetched} found)` : ''}…`
+                              : `Adding ${bulkProgress.current} / ${bulkProgress.total} episodes…`
                           }
                         </p>
                       </div>
@@ -381,15 +432,13 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                           <Icons.Plus size={13} />
                           Add All ({episodes.length})
                         </button>
-                        {transcriptCount > 0 && transcriptCount < episodes.length && (
-                          <button
-                            onClick={() => handleBulkAdd(null, { transcriptOnly: true })}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--surface)] border border-[var(--accent)] text-[var(--accent)] rounded-[var(--r-sm)] min-h-[36px]"
-                          >
-                            <Icons.FileText size={12} />
-                            Transcript ({transcriptCount})
-                          </button>
-                        )}
+                        <button
+                          onClick={handleAllTranscripts}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--surface)] border border-[var(--accent)] text-[var(--accent)] rounded-[var(--r-sm)] min-h-[36px]"
+                        >
+                          <Icons.FileText size={12} />
+                          All Transcript
+                        </button>
                         {bulkOptions.length > 0 && (
                           <div className="relative">
                             <button
