@@ -31,6 +31,7 @@ export default function PodcastDetail() {
   const [processing, setProcessing] = useState(false)
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
+  const [showAudioConfirm, setShowAudioConfirm] = useState(false)
 
   // Playback state
   const { user } = useAuth()
@@ -219,8 +220,17 @@ export default function PodcastDetail() {
     return () => clearInterval(poll)
   }, [podcast?.status, processing, podcastId])
 
-  async function handleProcess() {
+  function handleProcess() {
     if (processing) return
+    if (!podcast.transcript_url) {
+      setShowAudioConfirm(true)
+      return
+    }
+    startProcessing()
+  }
+
+  async function startProcessing() {
+    setShowAudioConfirm(false)
     setProcessing(true)
     setProcessingStartedAt(new Date().toISOString())
     setProcessingFinishedAt(null)
@@ -291,10 +301,26 @@ export default function PodcastDetail() {
             <h1 className="serif text-[28px] font-medium tracking-tight leading-tight m-0">
               {podcast.title || 'Untitled Podcast'}
             </h1>
-            <div className="flex gap-3 mt-2.5 text-[11px] mono mute items-center">
+            <div className="flex gap-3 mt-2.5 text-[11px] mono mute items-center flex-wrap">
               <StatusPip status={podcast.status} />
               <span>·</span>
               <span>{formatDuration(podcast.duration_seconds)}</span>
+              {canProcess && (
+                <>
+                  <span>·</span>
+                  {podcast.transcript_url ? (
+                    <span className="flex items-center gap-1 text-[var(--accent)]">
+                      <Icons.FileText size={11} />
+                      RSS Transcript
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[color-mix(in_oklab,var(--text-dim),orange_40%)]">
+                      <Icons.Mic size={11} />
+                      Audio Only
+                    </span>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Actions */}
@@ -333,6 +359,29 @@ export default function PodcastDetail() {
                 </a>
               )}
             </div>
+
+            {/* Audio processing confirmation */}
+            {showAudioConfirm && (
+              <div className="mt-3 p-3 bg-[color-mix(in_oklab,var(--surface),orange_8%)] border border-[color-mix(in_oklab,var(--border),orange_20%)] rounded-[var(--r-md)]">
+                <p className="text-[12px] m-0 mb-2 text-[var(--text-dim)]">
+                  No RSS transcript available. Processing will download audio and use Whisper transcription, which costs money.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={startProcessing}
+                    className="text-[12px] px-3 py-1.5 font-medium bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)]"
+                  >
+                    Process Anyway
+                  </button>
+                  <button
+                    onClick={() => setShowAudioConfirm(false)}
+                    className="text-[12px] px-3 py-1.5 font-medium bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] text-[var(--text-dim)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Linked KBs */}
             {linkedKBs.length > 0 && (

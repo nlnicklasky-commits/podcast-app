@@ -313,6 +313,11 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                         {ep.fileSize > 0 && (
                           <span className="text-[11px] mute">{formatFileSize(ep.fileSize)}</span>
                         )}
+                        {(ep.transcripts?.length > 0 || ep.transcriptUrl) ? (
+                          <span className="text-[11px] text-[var(--accent)]">Transcript</span>
+                        ) : (
+                          <span className="text-[11px] text-[color-mix(in_oklab,var(--text-dim),orange_40%)]">Audio</span>
+                        )}
                       </div>
                       <div className="flex gap-2 mt-2">
                         <button

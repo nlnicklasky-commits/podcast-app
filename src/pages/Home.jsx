@@ -218,6 +218,11 @@ export default function Home() {
                     </div>
                     <div className="hidden sm:flex items-center gap-3">
                       <StatusPip status={p.status} />
+                      {p.status === 'pending' && (
+                        p.transcript_url
+                          ? <span className="text-[11px] mono text-[var(--accent)]">Transcript</span>
+                          : <span className="text-[11px] mono text-[color-mix(in_oklab,var(--text-dim),orange_40%)]">Audio</span>
+                      )}
                       <span className="text-[11px] mono mute">{timeAgo(p.created_at)}</span>
                     </div>
                     <Icons.Arrow size={14} className="mute shrink-0" />

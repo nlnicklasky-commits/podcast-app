@@ -301,6 +301,11 @@ function PodcastRow({ podcast: p, onClick, onDelete }) {
         <div className="flex gap-3 mt-1.5 text-[11px] mono mute items-center flex-wrap">
           <StatusPip status={p.status} />
           <span>{formatDuration(p.duration_seconds)}</span>
+          {p.status === 'pending' && (
+            p.transcript_url
+              ? <span className="text-[var(--accent)]">Transcript</span>
+              : <span className="text-[color-mix(in_oklab,var(--text-dim),orange_40%)]">Audio</span>
+          )}
           {p.published_at && <span className="hidden sm:inline">{p.published_at}</span>}
         </div>
         {isProcessing && (
