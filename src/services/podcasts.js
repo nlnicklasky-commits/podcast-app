@@ -1,5 +1,18 @@
 import { supabase } from '../lib/supabase'
 
+function fireProcessing(podcastId) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({ podcast_id: podcastId }),
+  }).catch(() => {})
+}
+
 /**
  * List all podcasts across all knowledge bases (deduplicated).
  * Used for the standalone Podcasts section.
@@ -162,6 +175,10 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
     if (linkError) throw new Error(`Failed to link episode to knowledge base: ${linkError.message}`)
   }
 
+  if (transcriptUrl) {
+    fireProcessing(podcast.id)
+  }
+
   return { podcast, alreadyProcessed: false }
 }
 
@@ -268,9 +285,15 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
     }
   }
 
+  const withTranscript = insertedPodcasts.filter(p => p.transcript_url)
+  for (const p of withTranscript) {
+    fireProcessing(p.id)
+  }
+
   return {
     added: insertedPodcasts.length,
     skipped: alreadyExisting.length,
+    autoProcessing: withTranscript.length,
     podcasts: insertedPodcasts,
   }
 }

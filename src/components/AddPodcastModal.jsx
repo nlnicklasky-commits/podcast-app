@@ -367,7 +367,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                         </div>
                         <p className="text-[12px] mute text-center m-0">
                           {bulkProgress.done
-                            ? `Added ${bulkProgress.added} episode${bulkProgress.added !== 1 ? 's' : ''}${bulkProgress.skipped ? ` (${bulkProgress.skipped} already in library)` : ''}`
+                            ? `Added ${bulkProgress.added} episode${bulkProgress.added !== 1 ? 's' : ''}${bulkProgress.autoProcessing ? ` · ${bulkProgress.autoProcessing} auto-processing` : ''}${bulkProgress.skipped ? ` · ${bulkProgress.skipped} already in library` : ''}`
                             : `Adding ${bulkProgress.current} / ${bulkProgress.total} episodes…`
                           }
                         </p>
