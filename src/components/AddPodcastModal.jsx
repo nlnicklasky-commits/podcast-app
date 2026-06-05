@@ -70,7 +70,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     setBulkMenuOpen(false)
   }
 
-  async function handleSelectEpisode(episode, method) {
+  async function handleSelectEpisode(episode) {
     setLoading(true)
     setError('')
     try {
@@ -79,7 +79,6 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
         showTitle: selectedShow?.title || '',
         showArtwork: selectedShow?.artwork || '',
         feedUrl: selectedShow?.feedUrl || '',
-        processingMethod: method,
       }
       const result = await onAddFromIndex(enrichedEpisode)
       if (result?.alreadyProcessed) setError('')
@@ -123,10 +122,6 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       setBulkAdding(false)
       setBulkProgress(null)
     }
-  }
-
-  function hasTranscript(episode) {
-    return !!(episode.transcriptUrl || (episode.transcripts && episode.transcripts.length > 0))
   }
 
   function formatDuration(seconds) {
@@ -276,7 +271,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
               <>
                 {selectedShow && (
                   <p className="text-[12px] dim mb-3 m-0 shrink-0">
-                    by {selectedShow.author} · Choose transcript or audio for each episode
+                    by {selectedShow.author} · Add episodes to your library
                   </p>
                 )}
 
@@ -320,27 +315,13 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                         )}
                       </div>
                       <div className="flex gap-2 mt-2">
-                        {hasTranscript(ep) && (
-                          <button
-                            onClick={() => handleSelectEpisode(ep, 'transcript')}
-                            disabled={loading || bulkAdding}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)]"
-                          >
-                            <Icons.FileText size={12} />
-                            From Transcript
-                          </button>
-                        )}
                         <button
-                          onClick={() => handleSelectEpisode(ep, 'audio')}
+                          onClick={() => handleSelectEpisode(ep)}
                           disabled={loading || bulkAdding}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 rounded-[var(--r-sm)] ${
-                            hasTranscript(ep)
-                              ? 'bg-[var(--surface)] text-[var(--text-mute)] border border-[var(--border)]'
-                              : 'bg-[var(--accent)] text-[var(--accent-fg)] border-none'
-                          }`}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-50 bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-sm)]"
                         >
-                          <Icons.Mic size={12} />
-                          From Audio
+                          <Icons.Plus size={12} />
+                          Add
                         </button>
                       </div>
                     </div>
