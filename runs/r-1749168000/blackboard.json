@@ -1,0 +1,58 @@
+{"runId": "r-1749168000", "entries": [
+  {
+    "taskId": "t4",
+    "timestamp": "2026-06-05T21:05:05Z",
+    "keyFindings": [
+      "CORS preflight failures block semantic-search and podcast-discover Edge Functions from localhost — semantic search (core value prop) and discover page are both non-functional",
+      "Two Supabase tables (search_history, playback_progress) missing from PostgREST schema cache — features silently fail",
+      "No 404 page; invalid KB/podcast UUIDs silently redirect to home; unknown routes render blank content area"
+    ],
+    "implications": [
+      "CORS fix needed on at least 2 Edge Functions before search/discover can be tested further",
+      "Schema cache issue suggests recent migration not exposed — may affect other tables too"
+    ],
+    "confidence": "high"
+  },
+  {
+    "taskId": "t2",
+    "timestamp": "2026-06-05T21:08:24Z",
+    "keyFindings": [
+      "KB CRUD works end-to-end: create, list in sidebar, navigate to detail page — all functional",
+      "Mobile responsive sidebar works: hamburger, overlay, slide-in, close all tested and passing",
+      "Sidebar keyboard hint hardcodes Mac command-K on Windows — should detect OS and show Ctrl+K"
+    ],
+    "implications": [
+      "Home and KB management are stable — not a priority for fixes",
+      "Windows-specific UX issues may exist elsewhere"
+    ],
+    "confidence": "high"
+  },
+  {
+    "taskId": "t3",
+    "timestamp": "2026-06-05T21:09:20Z",
+    "keyFindings": [
+      "kb_syntheses table ALSO missing from schema cache — third missing table alongside playback_progress and search_history. Synthesis feature is non-functional.",
+      "Insights panel works fully when data exists: summary, key points, topics, entities all render correctly",
+      "Transcript viewer renders segments with ?t= highlighting but timestamps are not clickable"
+    ],
+    "implications": [
+      "Three missing tables total (playback_progress, search_history, kb_syntheses) — likely a batch migration issue",
+      "Core processing pipeline output displays correctly — the pipeline works, newer features built on top are broken"
+    ],
+    "confidence": "high"
+  },
+  {
+    "taskId": "t1",
+    "timestamp": "2026-06-05T21:12:00Z",
+    "keyFindings": [
+      "Core podcast search-to-add flow works perfectly: 42/42 tests pass. Show search, episode browse, bulk footer, back nav, modal close all functional.",
+      "74 stale podcast artwork URLs returning 404 with no img onError fallback — leaves invisible gaps in UI",
+      "Podcast Index edge functions (podcast-search, podcast-episodes) both return HTTP 200 reliably; episode loading has 5-8s cold start"
+    ],
+    "implications": [
+      "The primary user journey (find and add podcasts) is solid — not a fix priority",
+      "Image fallback needed to handle stale CDN artwork gracefully"
+    ],
+    "confidence": "high"
+  }
+]}

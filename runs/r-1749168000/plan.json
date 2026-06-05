@@ -1,0 +1,142 @@
+{
+  "runId": "r-1749168000",
+  "brief": "Audit the podcast app's features via Playwright automated testing. Go through the podcast selection process and all key flows, take super detailed notes on actual behavior (what works, what breaks, what's missing), then compare to the ideal state documented in CLAUDE.md.",
+  "createdAt": "2026-06-05T21:00:00Z",
+  "roles": [
+    {
+      "id": "r-qa-podcast",
+      "title": "QA Engineer — Podcast Flow",
+      "mission": "Test the core podcast discovery and addition workflow: search shows, browse episodes, add individual/bulk episodes, verify data persistence",
+      "expertise": "Playwright browser automation, form interaction, modal testing, network request validation",
+      "headcount": 1,
+      "modelTier": "opus"
+    },
+    {
+      "id": "r-qa-home",
+      "title": "QA Engineer — Home & KB",
+      "mission": "Test home page rendering, KB CRUD, sidebar navigation, layout responsiveness, and route transitions",
+      "expertise": "Playwright navigation testing, CRUD flow verification, DOM state assertions, responsive layout checks",
+      "headcount": 1,
+      "modelTier": "opus"
+    },
+    {
+      "id": "r-qa-detail",
+      "title": "QA Engineer — Detail & Features",
+      "mission": "Test podcast detail page tabs, insights display, processing UI, transcript viewer, audio playback controls, and KB-level features (chat, synthesis)",
+      "expertise": "Playwright component testing, polling/async UI validation, media element interaction",
+      "headcount": 1,
+      "modelTier": "opus"
+    },
+    {
+      "id": "r-qa-search",
+      "title": "QA Engineer — Search & Discover",
+      "mission": "Test the search page (semantic search + podcast tab), discover page (categories + trending), command palette, and OPML import modal",
+      "expertise": "Playwright search/filter testing, tabbed interface verification, keyboard shortcut testing",
+      "headcount": 1,
+      "modelTier": "opus"
+    },
+    {
+      "id": "r-analyst",
+      "title": "Product Analyst",
+      "mission": "Synthesize all QA findings into a gap analysis comparing actual behavior to the ideal state in CLAUDE.md, with severity ratings and fix priorities",
+      "expertise": "Product analysis, requirements verification, priority triage, structured reporting",
+      "headcount": 1,
+      "modelTier": "opus"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "Test podcast search → episode browse → add flow",
+      "roleId": "r-qa-podcast",
+      "instance": 1,
+      "prompt": "You are testing the podcast app at http://localhost:5173. Write and run a Playwright test script that exercises the full podcast discovery and addition workflow.\n\nThe app is a React+Vite app with Supabase backend. The dev server is already running on port 5173. Playwright is installed (`npx playwright test` works). Write your test file to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\tests\\podcast-flow.spec.js`.\n\nTEST THESE FLOWS:\n\n1. **Add Podcast Modal (from Home)**\n   - Navigate to http://localhost:5173\n   - Wait for page to load (the sidebar and main content should render)\n   - Find and click the 'Add Podcast' button (or equivalent trigger)\n   - Verify the AddPodcastModal opens with a search input\n   - Type a search query (e.g., 'Joe Rogan' or 'Lex Fridman' or 'technology')\n   - Wait for search results to appear (shows list)\n   - Verify show cards render with: title, author, artwork image, episode count\n   - Click on a show to browse episodes\n   - Verify episode list loads with: title, duration, date, transcript/audio indicator\n   - Verify 'Add' button exists on each episode\n   - Test the bulk add footer: 'Add All', 'All Transcript', 'Recent' dropdown\n   - Click back arrow to return to shows list\n   - Try a search that returns no results\n   - Close the modal\n\n2. **Error states**\n   - Try searching with <2 characters and verify placeholder text\n   - Check how the modal handles slow/failed network (just document what you observe)\n\n3. **Visual/UX observations**\n   - Document EVERYTHING you see: loading spinners, transitions, spacing, truncation, overflow behavior\n   - Screenshot each major state\n   - Note any console errors (use page.on('console') to capture)\n\nIMPORTANT: Use `{ headless: true }` for Playwright. Take screenshots at EVERY step and save them to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\test-results\\`. Name them descriptively (e.g., `01-home-loaded.png`, `02-modal-open.png`, etc.).\n\nIf a test step fails, DOCUMENT the failure in detail (what happened vs what was expected) and continue testing other steps. Do NOT stop at the first failure.\n\nAfter running, write your deliverable to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t1.md` with:\n- Step-by-step log of what happened at each test step\n- Screenshots taken (list filenames)\n- Console errors captured\n- Bugs/issues found (with severity: critical/major/minor)\n- What worked correctly\n- Any UX observations",
+      "ctxRefs": [
+        "src/components/AddPodcastModal.jsx",
+        "src/services/podcastIndex.js",
+        "src/services/podcasts.js",
+        "src/pages/Home.jsx"
+      ],
+      "deps": [],
+      "deliverable": "out/r-1749168000/t1.md",
+      "attempts": 0,
+      "requiredTools": [],
+      "dynamic": false
+    },
+    {
+      "id": "t2",
+      "title": "Test home page, KB CRUD, sidebar, navigation",
+      "roleId": "r-qa-home",
+      "instance": 1,
+      "prompt": "You are testing the podcast app at http://localhost:5173. Write and run a Playwright test script that exercises the home page, knowledge base management, sidebar, and navigation.\n\nThe app is a React+Vite app with Supabase backend. The dev server is already running on port 5173. Playwright is installed. Write your test file to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\tests\\home-kb.spec.js`.\n\nTEST THESE FLOWS:\n\n1. **Home Page Load**\n   - Navigate to http://localhost:5173\n   - Wait for full page load (not just the loading spinner)\n   - Verify the layout renders: sidebar on left, main content on right\n   - Check if Knowledge Bases section renders with any existing KBs\n   - Check if Podcasts section renders with any existing podcasts\n   - Take a full-page screenshot\n   - Capture any console errors on load\n\n2. **Sidebar**\n   - Verify sidebar contains: Knowledge Base list, navigation links\n   - Verify sidebar shows podcast count / hours stat\n   - Click each navigation link (Home, Search, Discover) and verify route changes\n   - Test sidebar on narrow viewport (mobile) — does the overlay/hamburger work?\n\n3. **Knowledge Base CRUD**\n   - Click 'New Knowledge Base' button (or equivalent)\n   - Verify CreateKBModal opens\n   - Try creating a KB (fill in name, optional description)\n   - Verify the KB appears in the list after creation\n   - Click into the KB page and verify it loads\n   - Test KB rename (inline editing)\n   - Navigate back to home\n\n4. **Podcast Cards on Home**\n   - Check how podcast cards render: thumbnail, title, channel, status, duration\n   - Verify status indicators (ready/pending/processing/error) display correctly\n   - Click a podcast card and verify navigation to detail page\n\n5. **Command Palette**\n   - Press Ctrl+K and verify the command palette opens\n   - Type a search query and verify results\n   - Press Escape to close\n\nIMPORTANT: Take screenshots at EVERY step and save to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\test-results\\`. Name them `home-01-<desc>.png`, `home-02-<desc>.png`, etc.\n\nDocument EVERYTHING: what renders, what's missing, console errors, visual glitches, broken links, slow loads. If a step fails, document it and continue.\n\nWrite your deliverable to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t2.md` with:\n- Step-by-step log\n- Screenshots taken (filenames)\n- Console errors\n- Bugs/issues found (severity: critical/major/minor)\n- What worked correctly\n- UX observations",
+      "ctxRefs": [
+        "src/pages/Home.jsx",
+        "src/components/Layout.jsx",
+        "src/components/CreateKBModal.jsx",
+        "src/App.jsx"
+      ],
+      "deps": [],
+      "deliverable": "out/r-1749168000/t2.md",
+      "attempts": 0,
+      "requiredTools": [],
+      "dynamic": false
+    },
+    {
+      "id": "t3",
+      "title": "Test podcast detail, insights, processing, playback",
+      "roleId": "r-qa-detail",
+      "instance": 1,
+      "prompt": "You are testing the podcast app at http://localhost:5173. Write and run a Playwright test script that exercises the podcast detail page and its features.\n\nThe app is a React+Vite app with Supabase backend. The dev server is already running on port 5173. Playwright is installed. Write your test file to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\tests\\detail-features.spec.js`.\n\nTEST THESE FLOWS:\n\n1. **Navigate to a podcast detail page**\n   - First go to http://localhost:5173 and find any podcast in the list\n   - If no podcasts exist, document that and check the URL pattern /podcast/:podcastId\n   - Click a podcast to navigate to its detail page\n   - Take a screenshot of the full detail page\n\n2. **Detail Page Tabs/Sections**\n   - Check what tabs exist (insights, transcript, etc.)\n   - Click each tab and verify content loads\n   - Verify the tab switching works (active tab styling, content swap)\n\n3. **Insights Panel**\n   - If a podcast has status='ready', check the insights tab:\n     - Summary text renders\n     - Topics list renders\n     - Key points render\n     - Entities render (people, companies)\n   - If no insights, document the empty state\n\n4. **Processing UI**\n   - For a podcast with status='pending':\n     - Check if 'Process' button is visible\n     - Check ProcessingProgress component renders when processing\n     - Check ProcessingLog component renders\n   - For a podcast already processing, check progress bar and step indicators\n   - Document all processing-related UI elements\n\n5. **Audio Playback**\n   - Check if audio player renders for podcasts with audio\n   - Test playback speed buttons (1x, 1.25x, 1.5x, 2x)\n   - Check if seek/timeline works\n\n6. **KB-Level Features (via /kb/:id route)**\n   - Navigate to a KB page if any KBs exist\n   - Check for tabs: episodes, chat, synthesis\n   - Test the chat panel (type a message, check for response area)\n   - Test the synthesis panel (check if themes/cross-references render)\n   - Test the 'Add Podcast' button within a KB\n\n7. **Add to KB Modal**\n   - From a standalone podcast detail, find 'Add to KB' button\n   - Verify the AddToKBModal lists available KBs\n   - Document the flow\n\nIMPORTANT: Take screenshots at EVERY step and save to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\test-results\\`. Name them `detail-01-<desc>.png`, `detail-02-<desc>.png`, etc.\n\nDocument EVERYTHING. If there are no podcasts in the DB to test with, that itself is a finding — document the empty states.\n\nWrite your deliverable to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t3.md` with:\n- Step-by-step log\n- Screenshots taken (filenames)\n- Console errors\n- Bugs/issues found (severity: critical/major/minor)\n- What worked correctly\n- UX observations",
+      "ctxRefs": [
+        "src/pages/PodcastDetail.jsx",
+        "src/pages/KnowledgeBase.jsx",
+        "src/components/InsightsPanel.jsx",
+        "src/components/ChatPanel.jsx",
+        "src/components/SynthesisPanel.jsx",
+        "src/components/ProcessingProgress.jsx"
+      ],
+      "deps": [],
+      "deliverable": "out/r-1749168000/t3.md",
+      "attempts": 0,
+      "requiredTools": [],
+      "dynamic": false
+    },
+    {
+      "id": "t4",
+      "title": "Test search page, discover page, edge features",
+      "roleId": "r-qa-search",
+      "instance": 1,
+      "prompt": "You are testing the podcast app at http://localhost:5173. Write and run a Playwright test script that exercises the search page, discover page, and edge features.\n\nThe app is a React+Vite app with Supabase backend. The dev server is already running on port 5173. Playwright is installed. Write your test file to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\tests\\search-discover.spec.js`.\n\nTEST THESE FLOWS:\n\n1. **Search Page (/search)**\n   - Navigate to http://localhost:5173/search\n   - Check what tabs exist (the code shows 'transcripts' tab and possibly a podcast search tab)\n   - Verify the search input renders and is focusable\n   - Test semantic search: type a query and observe results\n   - Check if semantic search results render with: text excerpt, podcast source, similarity score, timestamp\n   - Test search filters (scope, threshold)\n   - Check search history feature (if any results appear in history)\n   - Test tab switching between search modes\n   - Test the podcast search tab: search for a show, verify results\n   - Verify URL params update (q=, tab=)\n\n2. **Discover Page (/discover)**\n   - Navigate to http://localhost:5173/discover\n   - Verify categories load (from Podcast Index API)\n   - Verify trending shows load\n   - Click a category and verify shows filter\n   - Verify show cards render with: title, author, artwork, trend score\n   - Test 'clear category' to go back to trending\n   - Test clicking a show (should it open AddPodcastModal or navigate?)\n\n3. **Keyboard Shortcuts**\n   - Press '/' (forward slash) from home page — should navigate to /search\n   - Press Ctrl+K — should open command palette\n   - Press Escape — should close modals/palettes\n\n4. **OPML Import**\n   - Look for any OPML import button/modal in the UI\n   - If found, verify it opens and test the import flow\n   - If not visible, document that\n\n5. **Error Handling & Edge Cases**\n   - Navigate to an invalid route (e.g., /kb/nonexistent-id) — what happens?\n   - Navigate to /podcast/nonexistent-id — what happens?\n   - Test the error boundary by checking if graceful error states exist\n\nIMPORTANT: Take screenshots at EVERY step and save to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\test-results\\`. Name them `search-01-<desc>.png`, `search-02-<desc>.png`, etc.\n\nDocument EVERYTHING. Pay special attention to: loading states, empty states, error states, console errors.\n\nWrite your deliverable to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t4.md` with:\n- Step-by-step log\n- Screenshots taken (filenames)\n- Console errors\n- Bugs/issues found (severity: critical/major/minor)\n- What worked correctly\n- UX observations",
+      "ctxRefs": [
+        "src/pages/SearchPage.jsx",
+        "src/pages/DiscoverPage.jsx",
+        "src/components/CommandPalette.jsx",
+        "src/components/OPMLImportModal.jsx"
+      ],
+      "deps": [],
+      "deliverable": "out/r-1749168000/t4.md",
+      "attempts": 0,
+      "requiredTools": [],
+      "dynamic": false
+    },
+    {
+      "id": "t5",
+      "title": "Gap analysis: actual behavior vs CLAUDE.md ideal state",
+      "roleId": "r-analyst",
+      "instance": 1,
+      "prompt": "You are the Product Analyst for this audit. Your job is to read ALL four QA engineer deliverables and the project's CLAUDE.md, then produce a comprehensive gap analysis.\n\nRead these files:\n1. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t1.md` — Podcast search/add flow test results\n2. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t2.md` — Home/KB/navigation test results\n3. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t3.md` — Detail/insights/processing test results\n4. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t4.md` — Search/discover test results\n5. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\CLAUDE.md` — The ideal state documentation\n\nAlso read the blackboard for additional context:\n6. `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\runs\\r-1749168000\\blackboard.json`\n\nProduce a structured gap analysis with these sections:\n\n## 1. Executive Summary\n2-3 sentences: overall health of the app, how many features work vs broken.\n\n## 2. Feature-by-Feature Comparison\nFor EACH feature listed in CLAUDE.md's development phases, create a row:\n| Feature | CLAUDE.md Status | Actual Status | Working? | Issues Found |\n\nInclude every Phase 1-5 feature.\n\n## 3. Critical Bugs (P0)\nIssues that prevent core functionality from working. Each with:\n- Description\n- Steps to reproduce (from QA reports)\n- Expected vs actual behavior\n- Screenshot reference (if available)\n\n## 4. Major Bugs (P1)\nIssues that significantly degrade UX but have workarounds.\n\n## 5. Minor Issues (P2)\nCosmetic, UX polish, edge cases.\n\n## 6. Missing Features\nFeatures documented in CLAUDE.md as complete but not actually working or visible.\n\n## 7. Undocumented Features\nFeatures that exist in the app but aren't in CLAUDE.md (positive findings).\n\n## 8. Recommended Fix Priority\nOrdered list of what to fix first, based on impact and effort.\n\nBe brutally honest. If something is broken, say so clearly. If something works great, call that out too. Reference specific screenshots and test steps from the QA reports.\n\nWrite your deliverable to `C:\\Users\\nlnic\\Documents\\Projects\\podcast-app\\out\\r-1749168000\\t5.md`.",
+      "ctxRefs": [
+        "CLAUDE.md",
+        "out/r-1749168000/t1.md",
+        "out/r-1749168000/t2.md",
+        "out/r-1749168000/t3.md",
+        "out/r-1749168000/t4.md"
+      ],
+      "deps": ["t1", "t2", "t3", "t4"],
+      "deliverable": "out/r-1749168000/t5.md",
+      "attempts": 0,
+      "requiredTools": [],
+      "dynamic": false
+    }
+  ]
+}
