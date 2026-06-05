@@ -1,11 +1,5 @@
 import { supabase } from '../lib/supabase'
 
-async function getCurrentUserId() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
-
 /**
  * List all podcasts across all knowledge bases (deduplicated).
  * Used for the standalone Podcasts section.
@@ -135,8 +129,6 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
   }
 
   // New episode -- create podcast row with Podcast Index metadata
-  const userId = await getCurrentUserId()
-
   const { data, error } = await supabase
     .from('podcasts')
     .insert({
@@ -152,7 +144,6 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
       duration_seconds: episode.duration || null,
       transcript_url: transcriptUrl,
       status: 'pending',
-      user_id: userId,
     })
     .select()
     .limit(1)
@@ -189,7 +180,6 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
 export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMetadata, onProgress) {
   if (!episodes || episodes.length === 0) return { added: 0, skipped: 0, podcasts: [] }
 
-  const userId = await getCurrentUserId()
   const total = episodes.length
   const BATCH_SIZE = 50
 
@@ -228,7 +218,6 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
         source: 'podcast_index',
         duration_seconds: ep.duration || null,
         status: 'pending',
-        user_id: userId,
       })
     }
   }

@@ -14,7 +14,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 
 function AuthGate({ children }) {
-  const { session, loading } = useAuth()
+  const { loading } = useAuth()
 
   if (loading) {
     return (
@@ -22,10 +22,6 @@ function AuthGate({ children }) {
         <div className="mute text-sm">Loading...</div>
       </div>
     )
-  }
-
-  if (!session) {
-    return <Navigate to="/auth" replace />
   }
 
   return children

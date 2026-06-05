@@ -1,11 +1,5 @@
 import { supabase } from '../lib/supabase'
 
-async function getCurrentUserId() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
-
 /**
  * Fetch saved playback progress for a podcast.
  * Returns the progress row or null if none exists.
@@ -13,12 +7,9 @@ async function getCurrentUserId() {
 export async function getProgress(podcastId) {
   if (!podcastId) return null
 
-  const userId = await getCurrentUserId()
-
   const { data, error } = await supabase
     .from('playback_progress')
     .select('*')
-    .eq('user_id', userId)
     .eq('podcast_id', podcastId)
     .limit(1)
 
@@ -36,13 +27,10 @@ export async function getProgress(podcastId) {
 export async function saveProgress(podcastId, { positionSeconds, durationSeconds, playbackSpeed, completed }) {
   if (!podcastId) return null
 
-  const userId = await getCurrentUserId()
-
   const { data, error } = await supabase
     .from('playback_progress')
     .upsert(
       {
-        user_id: userId,
         podcast_id: podcastId,
         position_seconds: positionSeconds,
         duration_seconds: durationSeconds ?? null,
@@ -50,7 +38,7 @@ export async function saveProgress(podcastId, { positionSeconds, durationSeconds
         completed: completed ?? false,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'user_id,podcast_id' },
+      { onConflict: 'podcast_id' },
     )
     .select()
     .limit(1)
@@ -69,12 +57,9 @@ export async function saveProgress(podcastId, { positionSeconds, durationSeconds
  */
 export async function getRecentProgress() {
   try {
-    const userId = await getCurrentUserId()
-
     const { data, error } = await supabase
       .from('playback_progress')
       .select('podcast_id, position_seconds, duration_seconds, completed')
-      .eq('user_id', userId)
 
     if (error) {
       console.error('Failed to load recent progress:', error.message)

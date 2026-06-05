@@ -1,11 +1,5 @@
 import { supabase } from '../lib/supabase'
 
-async function getCurrentUserId() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
-
 export async function listKnowledgeBases() {
   const { data, error } = await supabase
     .from('knowledge_bases')
@@ -33,11 +27,9 @@ export async function getKnowledgeBase(id) {
 export async function createKnowledgeBase(name, description = '') {
   if (!name || !name.trim()) throw new Error('Failed to create knowledge base: name is required')
 
-  const userId = await getCurrentUserId()
-
   const { data, error } = await supabase
     .from('knowledge_bases')
-    .insert({ name: name.trim(), description, user_id: userId })
+    .insert({ name: name.trim(), description })
     .select()
     .limit(1)
 

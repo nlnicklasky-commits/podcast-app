@@ -1,11 +1,5 @@
 import { supabase } from '../lib/supabase'
 
-async function getCurrentUserId() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
-  return user.id
-}
-
 export async function listSubscriptions() {
   const { data, error } = await supabase
     .from('feed_subscriptions')
@@ -19,12 +13,9 @@ export async function listSubscriptions() {
 export async function subscribe(show) {
   if (!show || !show.id) throw new Error('Failed to subscribe: show data is required')
 
-  const userId = await getCurrentUserId()
-
   const { data, error } = await supabase
     .from('feed_subscriptions')
     .insert({
-      user_id: userId,
       feed_id: show.id,
       feed_url: show.feedUrl,
       feed_title: show.title,
