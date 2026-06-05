@@ -114,18 +114,16 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
     }
   }
 
-  // Resolve transcript URL if user chose transcript method
+  // Resolve transcript URL if available — prefer SRT, then plain text
   let transcriptUrl = null
-  if (episode.processingMethod === 'transcript') {
-    if (episode.transcripts && episode.transcripts.length > 0) {
-      const srt = episode.transcripts.find(t =>
-        t.type === 'application/x-subrip' || t.type?.includes('srt')
-      )
-      const txt = episode.transcripts.find(t => t.type === 'text/plain')
-      transcriptUrl = (srt || txt || episode.transcripts[0]).url
-    } else if (episode.transcriptUrl) {
-      transcriptUrl = episode.transcriptUrl
-    }
+  if (episode.transcripts && episode.transcripts.length > 0) {
+    const srt = episode.transcripts.find(t =>
+      t.type === 'application/x-subrip' || t.type?.includes('srt')
+    )
+    const txt = episode.transcripts.find(t => t.type === 'text/plain')
+    transcriptUrl = (srt || txt || episode.transcripts[0]).url
+  } else if (episode.transcriptUrl) {
+    transcriptUrl = episode.transcriptUrl
   }
 
   // New episode -- create podcast row with Podcast Index metadata
@@ -206,6 +204,16 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
     if (ep.id && existingMap.has(ep.id)) {
       alreadyExisting.push({ episodeIndexId: ep.id, podcastId: existingMap.get(ep.id) })
     } else {
+      let transcriptUrl = null
+      if (ep.transcripts && ep.transcripts.length > 0) {
+        const srt = ep.transcripts.find(t =>
+          t.type === 'application/x-subrip' || t.type?.includes('srt')
+        )
+        const txt = ep.transcripts.find(t => t.type === 'text/plain')
+        transcriptUrl = (srt || txt || ep.transcripts[0]).url
+      } else if (ep.transcriptUrl) {
+        transcriptUrl = ep.transcriptUrl
+      }
       toInsert.push({
         title: ep.title,
         channel: showMetadata.title,
@@ -217,6 +225,7 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
         feed_url: showMetadata.feedUrl || null,
         source: 'podcast_index',
         duration_seconds: ep.duration || null,
+        transcript_url: transcriptUrl,
         status: 'pending',
       })
     }
