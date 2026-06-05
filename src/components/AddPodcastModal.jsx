@@ -89,15 +89,23 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     }
   }
 
-  async function handleBulkAdd(count) {
+  async function handleBulkAdd(count, { transcriptOnly = false } = {}) {
     setBulkAdding(true)
     setBulkMenuOpen(false)
     setError('')
-    setBulkProgress({ current: 0, total: count || episodes.length })
 
     try {
-      const sorted = [...episodes].sort((a, b) => (b.datePublished || 0) - (a.datePublished || 0))
+      let sorted = [...episodes].sort((a, b) => (b.datePublished || 0) - (a.datePublished || 0))
+      if (transcriptOnly) {
+        sorted = sorted.filter(ep => ep.transcripts?.length > 0 || ep.transcriptUrl)
+      }
       const toAdd = count ? sorted.slice(0, count) : sorted
+      if (toAdd.length === 0) {
+        setError('No episodes with transcripts found')
+        setBulkAdding(false)
+        return
+      }
+      setBulkProgress({ current: 0, total: toAdd.length })
 
       const showMetadata = {
         title: selectedShow?.title || '',
@@ -155,6 +163,8 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     if (!str) return ''
     return str.length > len ? str.slice(0, len) + '...' : str
   }
+
+  const transcriptCount = episodes.filter(ep => ep.transcripts?.length > 0 || ep.transcriptUrl).length
 
   const bulkOptions = [
     { label: 'Recent 10', count: 10 },
@@ -371,6 +381,15 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                           <Icons.Plus size={13} />
                           Add All ({episodes.length})
                         </button>
+                        {transcriptCount > 0 && transcriptCount < episodes.length && (
+                          <button
+                            onClick={() => handleBulkAdd(null, { transcriptOnly: true })}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--surface)] border border-[var(--accent)] text-[var(--accent)] rounded-[var(--r-sm)] min-h-[36px]"
+                          >
+                            <Icons.FileText size={12} />
+                            Transcript ({transcriptCount})
+                          </button>
+                        )}
                         {bulkOptions.length > 0 && (
                           <div className="relative">
                             <button
