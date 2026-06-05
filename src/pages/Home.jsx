@@ -202,6 +202,7 @@ export default function Home() {
                         src={p.thumbnail_url}
                         alt=""
                         className="w-10 h-10 object-cover shrink-0 rounded-[var(--r-sm)]"
+                        onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
                       />
                     ) : (
                       <div
@@ -283,9 +284,12 @@ export default function Home() {
 function KBCard({ kb, onClick, onDelete }) {
   const podcastCount = kb.knowledge_base_podcasts?.[0]?.count ?? 0
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="text-left flex flex-col gap-2.5 p-3.5 sm:p-[18px] transition-all group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      className="text-left flex flex-col gap-2.5 p-3.5 sm:p-[18px] transition-all group cursor-pointer bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
     >
       <div className="flex items-center gap-2.5">
         <KBGlyph name={kb.name} size={28} />
@@ -308,6 +312,6 @@ function KBCard({ kb, onClick, onDelete }) {
         <span>{podcastCount} eps</span>
         <span>{formatDate(kb.created_at)}</span>
       </div>
-    </button>
+    </div>
   )
 }

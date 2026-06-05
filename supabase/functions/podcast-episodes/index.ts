@@ -229,10 +229,23 @@ Deno.serve(async (req: Request) => {
         image: string;
         link: string;
         feedId: number;
+        transcriptUrl?: string;
+        transcripts?: Array<{ url: string; type: string }>;
       }) => {
-        // Match transcript data from RSS feed by enclosure URL filename
-        const epFilename = ep.enclosureUrl?.split("/").pop() || "";
-        const rssTranscripts = transcriptMap.get(epFilename) || [];
+        // Use PI API transcript data first (covers all episodes), fall back to RSS matching
+        let transcripts: { url: string; type: string }[] = [];
+
+        if (ep.transcripts && ep.transcripts.length > 0) {
+          transcripts = ep.transcripts;
+        } else if (ep.transcriptUrl) {
+          transcripts = [{ url: ep.transcriptUrl, type: "text/plain" }];
+        }
+
+        // Supplement with RSS feed transcripts if PI API had none
+        if (transcripts.length === 0) {
+          const epFilename = ep.enclosureUrl?.split("/").pop() || "";
+          transcripts = transcriptMap.get(epFilename) || [];
+        }
 
         return {
           id: ep.id,
@@ -246,7 +259,7 @@ Deno.serve(async (req: Request) => {
           image: ep.image,
           link: ep.link,
           feedId: ep.feedId,
-          transcripts: rssTranscripts,
+          transcripts,
           locked: feedLocked,
         };
       },

@@ -83,29 +83,13 @@ export async function getEpisodes(feedId, feedUrl, options = {}) {
  * Returns the full episode array sorted newest-first.
  */
 export async function getAllEpisodes(feedId, feedUrl, onProgress) {
-  const all = []
-  let since = null
-  const seen = new Set()
+  // PI API max is 1000 per call — for most feeds, one call gets everything.
+  // `since` means "episodes NEWER than this timestamp" so it can't paginate backwards.
+  // We fetch max=1000 in one shot. If the feed has >1000 episodes, this gets the 1000 most recent.
+  const { episodes } = await getEpisodes(feedId, feedUrl, { max: 1000 })
 
-  while (true) {
-    const { episodes, hasMore, oldestTimestamp } = await getEpisodes(
-      feedId, feedUrl, { max: 1000, since }
-    )
-
-    for (const ep of episodes) {
-      if (!seen.has(ep.id)) {
-        seen.add(ep.id)
-        all.push(ep)
-      }
-    }
-
-    if (onProgress) onProgress(all.length)
-    if (!hasMore || !oldestTimestamp) break
-
-    since = oldestTimestamp - 1
-  }
-
-  return all
+  if (onProgress) onProgress(episodes.length)
+  return episodes
 }
 
 /**

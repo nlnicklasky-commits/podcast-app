@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import { getInsights } from '../services/processing'
@@ -11,6 +11,8 @@ import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
 import { fullKBToMarkdown, downloadMarkdown, slugify } from '../lib/export'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default function KnowledgeBase() {
   const { id } = useParams()
@@ -47,6 +49,10 @@ export default function KnowledgeBase() {
   }
 
   async function load() {
+    if (!UUID_RE.test(id)) {
+      setLoading(false)
+      return
+    }
     try {
       const [kbData, podcastData] = await Promise.all([
         getKnowledgeBase(id),
@@ -104,7 +110,14 @@ export default function KnowledgeBase() {
     )
   }
 
-  if (!kb) return null
+  if (!kb) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <h1 className="serif text-2xl font-medium">Knowledge base not found</h1>
+        <Link to="/" className="text-sm text-[var(--accent)]">Back to home</Link>
+      </div>
+    )
+  }
 
   const readyCount = podcasts.filter((p) => p.status === 'ready').length
 
@@ -278,15 +291,19 @@ export default function KnowledgeBase() {
 function PodcastRow({ podcast: p, onClick, onDelete }) {
   const isProcessing = ['downloading', 'transcribing', 'processing'].includes(p.status)
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className="flex gap-3 p-3 text-left items-center transition-colors group min-h-[44px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      className="flex gap-3 p-3 text-left items-center transition-colors group cursor-pointer min-h-[44px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
     >
       {p.thumbnail_url ? (
         <img
           src={p.thumbnail_url}
           alt=""
           className="w-10 h-10 sm:w-[52px] sm:h-[52px] object-cover shrink-0 rounded-[var(--r-sm)]"
+          onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
         />
       ) : (
         <div
@@ -332,6 +349,6 @@ function PodcastRow({ podcast: p, onClick, onDelete }) {
         <Icons.X size={12} />
       </button>
       <Icons.Arrow size={14} className="mute" />
-    </button>
+    </div>
   )
 }

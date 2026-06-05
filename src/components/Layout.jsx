@@ -112,7 +112,7 @@ export default function Layout({ children }) {
           <kbd
             className="text-[10px] mono px-[5px] py-0.5 rounded mute hidden sm:inline border border-[var(--border)]"
           >
-            ⌘K
+            {typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl+K'}
           </kbd>
         </button>
 

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { useAuth } from './lib/useAuth'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -70,6 +70,12 @@ export default function App() {
                       <Route path="/kb/:kbId/podcast/:podcastId" element={<PodcastDetail />} />
                       <Route path="/podcast/:podcastId" element={<PodcastDetail />} />
                       <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="*" element={
+                        <div className="flex flex-col items-center justify-center h-full gap-3">
+                          <h1 className="serif text-2xl font-medium">Page not found</h1>
+                          <Link to="/" className="text-sm text-[var(--accent)]">Back to home</Link>
+                        </div>
+                      } />
                     </Routes>
                   </Layout>
                 </AuthGate>

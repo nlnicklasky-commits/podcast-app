@@ -32,7 +32,7 @@ function formatDuration(seconds) {
 
 export default function SearchPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const inputRef = useRef(null)
 
   const initialQuery = searchParams.get('q') || ''
@@ -78,6 +78,25 @@ export default function SearchPage() {
   const [loadingEpisodes, setLoadingEpisodes] = useState(false)
 
   const debouncedQuery = useDebounce(query, 300)
+
+  useEffect(() => {
+    const currentQ = searchParams.get('q') || ''
+    const currentTab = searchParams.get('tab') || 'transcripts'
+    if (currentQ !== debouncedQuery || currentTab !== activeTab) {
+      const next = new URLSearchParams(searchParams)
+      if (debouncedQuery) {
+        next.set('q', debouncedQuery)
+      } else {
+        next.delete('q')
+      }
+      if (activeTab !== 'transcripts') {
+        next.set('tab', activeTab)
+      } else {
+        next.delete('tab')
+      }
+      setSearchParams(next, { replace: true })
+    }
+  }, [debouncedQuery, activeTab])
 
   useEffect(() => {
     listKnowledgeBases().then(setKnowledgeBases).catch(console.error)
@@ -517,10 +536,13 @@ export default function SearchPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {history.map((h) => (
-                        <button
+                        <div
                           key={h.id}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => handleHistoryClick(h.query)}
-                          className="group inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-[var(--surface)] border border-[var(--border)] rounded-full hover:border-[var(--accent-soft)] transition-colors"
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleHistoryClick(h.query) } }}
+                          className="group inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] cursor-pointer bg-[var(--surface)] border border-[var(--border)] rounded-full hover:border-[var(--accent-soft)] transition-colors"
                         >
                           <span className="dim">{h.query.length > 40 ? h.query.slice(0, 40) + '…' : h.query}</span>
                           <button
@@ -529,7 +551,7 @@ export default function SearchPage() {
                           >
                             <Icons.X size={10} />
                           </button>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </>
@@ -564,6 +586,7 @@ export default function SearchPage() {
                       src={selectedShow.artwork}
                       alt=""
                       className="w-10 h-10 rounded object-cover shrink-0"
+                      onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
                     />
                   )}
                   <div className="min-w-0 flex-1">
@@ -625,6 +648,7 @@ export default function SearchPage() {
                             src={show.artwork}
                             alt=""
                             className="w-12 h-12 object-cover shrink-0 rounded-[var(--r-sm)]"
+                            onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
                           />
                         ) : (
                           <div className="w-12 h-12 rounded-[var(--r-sm)] bg-[var(--surface)] grid place-items-center shrink-0 mute border border-[var(--border)]">

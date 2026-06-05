@@ -13,6 +13,7 @@ import { StatusPip, Tag } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
 const SAVE_DEBOUNCE_MS = 10_000
 const COMPLETION_THRESHOLD = 0.9
@@ -157,6 +158,10 @@ export default function PodcastDetail() {
 
   useEffect(() => {
     async function load() {
+      if (!UUID_RE.test(podcastId) || (kbId && !UUID_RE.test(kbId))) {
+        setLoading(false)
+        return
+      }
       try {
         const [{ data: pod }, trans, kbs, logs] = await Promise.all([
           supabase.from('podcasts').select('*').eq('id', podcastId).limit(1),
@@ -256,7 +261,14 @@ export default function PodcastDetail() {
   if (loading) {
     return <div className="flex items-center justify-center h-full mute text-sm">Loading...</div>
   }
-  if (!podcast) return null
+  if (!podcast) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3">
+        <h1 className="serif text-2xl font-medium">Podcast not found</h1>
+        <Link to="/" className="text-sm text-[var(--accent)]">Back to home</Link>
+      </div>
+    )
+  }
 
   const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
   const canProcess = podcast.status === 'pending' || podcast.status === 'error'
@@ -286,6 +298,7 @@ export default function PodcastDetail() {
               src={podcast.thumbnail_url}
               alt=""
               className="w-[88px] h-[88px] object-cover shrink-0 rounded-[var(--r-lg)]"
+              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
             />
           ) : (
             <div
@@ -476,7 +489,7 @@ export default function PodcastDetail() {
         )}
 
         {activeTab === 'transcript' && (
-          <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} />
+          <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} audioRef={audioRef} />
         )}
 
         {activeTab === 'processing' && (
@@ -496,7 +509,8 @@ export default function PodcastDetail() {
   )
 }
 
-function TranscriptView({ transcript, highlightTime }) {
+function TranscriptView({ transcript, highlightTime, audioRef }) {
+  const [, setSearchParams] = useSearchParams()
   const highlightRef = useRef(null)
   const hasScrolled = useRef(false)
 
@@ -552,11 +566,18 @@ function TranscriptView({ transcript, highlightTime }) {
                     : ''
                 }`}
               >
-                <span
-                  className="mono text-[11px] text-right pt-[3px] text-[var(--accent)]"
+                <button
+                  onClick={() => {
+                    if (audioRef?.current) {
+                      audioRef.current.currentTime = seg.start
+                      audioRef.current.play()
+                    }
+                    setSearchParams((prev) => { prev.set('t', String(Math.floor(seg.start))); return prev }, { replace: true })
+                  }}
+                  className="mono text-[11px] text-right pt-[3px] text-[var(--accent)] cursor-pointer bg-transparent border-none p-0 hover:underline"
                 >
                   {formatTimestamp(seg.start)}
-                </span>
+                </button>
                 <p className="serif text-[16px] leading-relaxed tracking-tight m-0 dim">
                   {seg.sentences?.map((s) => s.text).join(' ') || seg.text || ''}
                 </p>
