@@ -4,6 +4,7 @@ import { listKnowledgeBases } from '../services/knowledgeBases'
 import { semanticSearch, getSearchHistory, deleteSearchHistoryEntry, clearSearchHistory } from '../services/search'
 import { searchShows, getEpisodes } from '../services/podcastIndex'
 import SemanticSearchResult from '../components/SemanticSearchResult'
+import { formatDuration } from '../lib/utils'
 import * as Icons from '../components/Icons'
 
 function useDebounce(value, delay) {
@@ -20,14 +21,6 @@ function decodeHtml(html) {
   const txt = document.createElement('textarea')
   txt.innerHTML = html
   return txt.value
-}
-
-function formatDuration(seconds) {
-  if (!seconds) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h > 0) return `${h}h ${m}m`
-  return `${m}m`
 }
 
 export default function SearchPage() {
@@ -270,14 +263,24 @@ export default function SearchPage() {
     inputRef.current?.focus()
   }
 
+  // Track pending scope change for re-search
+  const [scopeChangeFlag, setScopeChangeFlag] = useState(0)
+
   function handleScopeChange(type, id = null) {
     setScopeType(type)
     setScopeId(id)
     setOffset(0)
     if (hasSearched && query.trim().length >= 3) {
-      setTimeout(() => doSemanticSearch(query, 0, false), 0)
+      setScopeChangeFlag((prev) => prev + 1)
     }
   }
+
+  // Re-trigger search after scope state has settled
+  useEffect(() => {
+    if (scopeChangeFlag > 0 && query.trim().length >= 3) {
+      doSemanticSearch(query, 0, false)
+    }
+  }, [scopeChangeFlag, doSemanticSearch])
 
   async function handleSelectShow(show) {
     setSelectedShow(show)
@@ -616,7 +619,7 @@ export default function SearchPage() {
                   <div className="flex flex-col gap-1">
                     <div className="text-[12px] mono mute mb-2">{episodes.length} episodes</div>
                     {episodes.map((ep) => (
-                      <EpisodeRow key={ep.id} episode={ep} navigate={navigate} />
+                      <EpisodeRow key={ep.id} episode={ep} />
                     ))}
                   </div>
                 )}
@@ -729,7 +732,7 @@ function ScopePill({ label, active, onClick }) {
   )
 }
 
-function EpisodeRow({ episode, navigate }) {
+function EpisodeRow({ episode }) {
   const dateStr = episode.datePublished
     ? new Date(episode.datePublished * 1000).toLocaleDateString('en-US', {
         year: 'numeric',

@@ -1,20 +1,31 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { searchShows, getEpisodes, getAllEpisodes } from '../services/podcastIndex'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
+import { formatDuration } from '../lib/utils'
 import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
 
-export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBaseId = null }) {
-  const [step, setStep] = useState('shows')
+export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBaseId = null, initialShow = null }) {
+  const [step, setStep] = useState(initialShow ? 'episodes' : 'shows')
   const [query, setQuery] = useState('')
   const [shows, setShows] = useState([])
-  const [selectedShow, setSelectedShow] = useState(null)
+  const [selectedShow, setSelectedShow] = useState(initialShow)
   const [episodes, setEpisodes] = useState([])
   const [searching, setSearching] = useState(false)
   const [loadingEpisodes, setLoadingEpisodes] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
+
+  // Cleanup search timeout on unmount (P1-4 fix)
+  useEffect(() => () => clearTimeout(searchTimeout.current), [])
+
+  // Load episodes immediately when initialShow is provided (P0-1 fix)
+  useEffect(() => {
+    if (initialShow) {
+      handleSelectShow(initialShow)
+    }
+  }, [])
 
   const [bulkAdding, setBulkAdding] = useState(false)
   const [bulkProgress, setBulkProgress] = useState(null)
@@ -179,14 +190,6 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     }
   }
 
-  function formatDuration(seconds) {
-    if (!seconds) return ''
-    const h = Math.floor(seconds / 3600)
-    const m = Math.floor((seconds % 3600) / 60)
-    if (h > 0) return `${h}h ${m}m`
-    return `${m}m`
-  }
-
   function formatDate(unix) {
     if (!unix) return ''
     const d = new Date(unix * 1000)
@@ -242,7 +245,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
               {step === 'episodes' ? decodeHtml(selectedShow?.title) : 'Add Podcast'}
             </h3>
           </div>
-          <button onClick={onClose} className="ml-auto mute shrink-0">
+          <button onClick={onClose} className="ml-auto mute shrink-0" aria-label="Close">
             <Icons.X size={16} />
           </button>
         </div>

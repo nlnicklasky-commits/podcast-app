@@ -3,7 +3,7 @@ import { statusConfig } from '../lib/utils'
 export function StatusPip({ status }) {
   const config = statusConfig[status] || { color: 'var(--text-mute)', label: status, anim: false }
   return (
-    <span className="inline-flex items-center gap-1.5 mono text-[11px]" style={{ color: config.color }}>
+    <span className="inline-flex items-center gap-1.5 mono text-[11px]" style={{ color: config.color }} role="status" aria-label={`Status: ${config.label}`}>
       <span
         className="w-[7px] h-[7px] rounded-full"
         style={{
@@ -23,12 +23,12 @@ const KB_COLORS = {
   ink: 'oklch(0.7 0.1 230)',
 }
 
-export function KBGlyph({ name, color = 'copper', size = 24 }) {
+export function KBGlyph({ name, color = 'copper', size = 24, className = '' }) {
   const c = KB_COLORS[color] || KB_COLORS.copper
   const initial = (name || 'K').charAt(0).toUpperCase()
   return (
     <div
-      className="inline-flex items-center justify-center font-semibold serif shrink-0"
+      className={`inline-flex items-center justify-center font-semibold serif shrink-0 ${className}`}
       style={{
         width: size,
         height: size,
@@ -66,11 +66,17 @@ const TAG_CLASSES = {
 
 export function Tag({ children, variant = 'default', icon, onClick }) {
   const v = TAG_CLASSES[variant] || TAG_CLASSES.default
+  const cls = `inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] mono lowercase ${v} ${onClick ? 'cursor-pointer' : 'cursor-default'}`
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cls}>
+        {icon}
+        {children}
+      </button>
+    )
+  }
   return (
-    <span
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] mono lowercase ${v} ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
-    >
+    <span className={cls}>
       {icon}
       {children}
     </span>

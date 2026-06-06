@@ -13,7 +13,7 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -147,6 +147,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse("OPENAI_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
     }
     const groqKey = Deno.env.get("GROQ_API_KEY");
+    if (!groqKey) {
+      return errorResponse("GROQ_API_KEY not configured", ErrorCode.CONFIG_ERROR, 500, corsHeaders);
+    }
 
     // 1. Get podcast record
     const { data: podcast, error: podErr } = await supabase
@@ -336,10 +339,17 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    audioBlob = await audioResponse.blob();
-    await setProgress(PROGRESS.DOWNLOAD_PROGRESS);
-    await log("downloading", `Downloaded ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB from RSS feed.`);
+    // Pre-check Content-Length to avoid buffering oversized files into memory
+    const contentLength = audioResponse.headers.get("Content-Length");
+    if (contentLength && parseInt(contentLength, 10) > MAX_AUDIO_SIZE_BYTES) {
+      const clMB = (parseInt(contentLength, 10) / 1024 / 1024).toFixed(1);
+      throw Object.assign(
+        new Error(`Audio file is ${clMB}MB (per Content-Length), which exceeds the ${MAX_AUDIO_SIZE_BYTES / 1024 / 1024}MB limit. Try a shorter podcast.`),
+        { code: ErrorCode.AUDIO_TOO_LARGE, httpStatus: 422 },
+      );
+    }
 
+    audioBlob = await audioResponse.blob();
     const sizeMB = (audioBlob.size / 1024 / 1024).toFixed(1);
     await setProgress(PROGRESS.DOWNLOAD_COMPLETE);
     await log("downloading", `Downloaded ${sizeMB}MB audio file.`);
@@ -504,9 +514,8 @@ Deno.serve(async (req: Request) => {
       const rows = batch.map((chunk, idx) => ({
         ...chunk,
         embedding: JSON.stringify(embResult.data[idx].embedding),
-        token_count: embResult.usage?.total_tokens
-          ? Math.round(embResult.usage.total_tokens / texts.length)
-          : null,
+        // Estimate per-chunk token count using the same length/4 heuristic as createChunks
+        token_count: Math.ceil(chunk.text.length / 4),
       }));
 
       await supabase.from("chunks").insert(rows);
@@ -519,7 +528,7 @@ Deno.serve(async (req: Request) => {
 
     if (await checkCancelled()) return cancelledResponse();
 
-    // 6. Generate insights via Groq Llama 3.3 70B
+    // 6. Generate insights via OpenAI gpt-4o-mini
     await setProgress(PROGRESS.INSIGHTS_START);
     await log("processing", `Generating insights with ${INSIGHTS_MODEL}...`);
 

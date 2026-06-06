@@ -32,3 +32,10 @@ dist-ssr
 
 # Environment
 .env
+
+# Test results (ephemeral screenshots)
+test-results/
+
+# Claude Code orchestration artifacts
+out/
+runs/

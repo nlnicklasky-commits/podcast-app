@@ -32,7 +32,7 @@ export default function CreateKBModal({ onClose, onCreate }) {
           className="flex items-center px-[18px] py-3.5 border-b border-[var(--border)]"
         >
           <h3 className="m-0 text-[15px] font-medium">New Knowledge Base</h3>
-          <button onClick={onClose} className="ml-auto mute">
+          <button onClick={onClose} className="ml-auto mute" aria-label="Close">
             <Icons.X size={16} />
           </button>
         </div>

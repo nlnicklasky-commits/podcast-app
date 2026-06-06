@@ -111,18 +111,25 @@ Deno.serve(async (req: Request) => {
           }
 
           if (sub.auto_process && insertedIds.length > 0) {
+            // Fire-and-forget: don't await process-podcast calls.
+            // Each call triggers a full pipeline (download + transcribe + embed + insights)
+            // that can take minutes. Awaiting sequentially would cause this function to
+            // exceed Deno Deploy's execution time limit with multiple episodes.
+            // The process-podcast function manages its own status/progress tracking.
             for (const podcastId of insertedIds) {
               try {
-                await fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
+                fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${serviceRoleKey}`,
                   },
                   body: JSON.stringify({ podcast_id: podcastId }),
+                }).catch((procErr) => {
+                  console.error(`Auto-process failed for ${podcastId}:`, procErr);
                 });
               } catch (procErr) {
-                console.error(`Auto-process failed for ${podcastId}:`, procErr);
+                console.error(`Auto-process dispatch failed for ${podcastId}:`, procErr);
               }
             }
           }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
@@ -48,7 +48,7 @@ export default function KnowledgeBase() {
     }
   }
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!UUID_RE.test(id)) {
       setLoading(false)
       return
@@ -67,9 +67,9 @@ export default function KnowledgeBase() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, navigate])
 
-  useEffect(() => { load() }, [id])
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     function onAddPodcast() { setShowAdd(true) }

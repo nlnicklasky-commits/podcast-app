@@ -182,12 +182,17 @@ export default function ProfilePage() {
                       type="checkbox"
                       checked={sub.auto_process}
                       onChange={async (e) => {
-                        const updated = await updateSubscription(sub.id, {
-                          auto_process: e.target.checked,
-                        })
-                        setSubscriptions(prev =>
-                          prev.map(s => s.id === sub.id ? { ...s, ...updated } : s)
-                        )
+                        const checked = e.target.checked
+                        try {
+                          const updated = await updateSubscription(sub.id, {
+                            auto_process: checked,
+                          })
+                          setSubscriptions(prev =>
+                            prev.map(s => s.id === sub.id ? { ...s, ...updated } : s)
+                          )
+                        } catch (err) {
+                          setError(err.message || 'Failed to update subscription')
+                        }
                       }}
                       className="w-3.5 h-3.5 accent-[var(--accent)]"
                     />
@@ -195,8 +200,12 @@ export default function ProfilePage() {
                   </label>
                   <button
                     onClick={async () => {
-                      await unsubscribe(sub.id)
-                      setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
+                      try {
+                        await unsubscribe(sub.id)
+                        setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
+                      } catch (err) {
+                        setError(err.message || 'Failed to unsubscribe')
+                      }
                     }}
                     className="p-1.5 mute hover:text-[var(--error)] transition-colors shrink-0"
                     title="Unsubscribe"

@@ -42,6 +42,8 @@ export default function PodcastDetail() {
   const [isPlaying, setIsPlaying] = useState(false)
   const lastSaveRef = useRef(0)
   const saveTimerRef = useRef(null)
+  const pollIntervalRef = useRef(null)
+  const completionSavedRef = useRef(false)
 
   // Persist progress to Supabase (debounced)
   const persistProgress = useCallback(
@@ -137,12 +139,15 @@ export default function PodcastDetail() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [persistProgress])
 
-  // Check completion on timeupdate
+  // Check completion on timeupdate — only persist once after crossing threshold
   function handleTimeUpdate() {
     const audio = audioRef.current
     if (!audio || !audio.duration) return
     if (audio.currentTime / audio.duration >= COMPLETION_THRESHOLD) {
-      persistProgress(true)
+      if (!completionSavedRef.current) {
+        completionSavedRef.current = true
+        persistProgress(true)
+      }
     }
   }
 
@@ -198,7 +203,10 @@ export default function PodcastDetail() {
     const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
     if (!isActive && !processing) return
 
-    const poll = setInterval(async () => {
+    // Clear any existing interval to prevent stacking
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+
+    pollIntervalRef.current = setInterval(async () => {
       try {
         const result = await getPodcastStatus(podcastId)
         if (result) {
@@ -214,7 +222,8 @@ export default function PodcastDetail() {
               setProcessingFinishedAt(logs[logs.length - 1].created_at)
             }
             setProcessing(false)
-            clearInterval(poll)
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
           }
         }
       } catch {
@@ -222,7 +231,10 @@ export default function PodcastDetail() {
       }
     }, 2000)
 
-    return () => clearInterval(poll)
+    return () => {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
   }, [podcast?.status, processing, podcastId])
 
   function handleProcess() {

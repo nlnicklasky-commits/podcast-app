@@ -5,7 +5,7 @@ import { listAllPodcasts, addPodcastFromIndex } from '../services/podcasts'
 import { getRecentProgress } from '../services/playback'
 import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
-import { formatDate, formatDuration, timeAgo } from '../lib/utils'
+import { formatDate, timeAgo } from '../lib/utils'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import * as Icons from '../components/Icons'
 

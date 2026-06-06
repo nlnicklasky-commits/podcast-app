@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { podcastIndexFetch } from "../_shared/podcast-index.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -12,7 +13,7 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -21,7 +22,6 @@ function getCorsHeaders(request: Request): Record<string, string> {
 }
 
 const MAX_RESULTS = 12;
-const TIMEOUT_PODCAST_INDEX = 30 * 1000; // 30 seconds
 
 const ErrorCode = {
   MISSING_PARAM: "MISSING_PARAM",
@@ -50,64 +50,6 @@ function errorResponse(
     JSON.stringify({ error: message, code }),
     { status, headers: { ...respHeaders, "Content-Type": "application/json" } },
   );
-}
-
-async function podcastIndexFetch(endpoint: string, params: Record<string, string>) {
-  const apiKey = Deno.env.get("PODCAST_INDEX_KEY");
-  const apiSecret = Deno.env.get("PODCAST_INDEX_SECRET");
-  if (!apiKey || !apiSecret) {
-    throw Object.assign(
-      new Error("PODCAST_INDEX_KEY and PODCAST_INDEX_SECRET must be set"),
-      { code: ErrorCode.CONFIG_ERROR, httpStatus: 500 },
-    );
-  }
-
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const data = new TextEncoder().encode(apiKey + apiSecret + ts);
-  const hashBuffer = await crypto.subtle.digest("SHA-1", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const authHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-
-  const url = new URL(`https://api.podcastindex.org/api/1.0${endpoint}`);
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_PODCAST_INDEX);
-
-  try {
-    const response = await fetch(url.toString(), {
-      headers: {
-        "User-Agent": "PodcastBrain/1.0",
-        "X-Auth-Key": apiKey,
-        "X-Auth-Date": ts,
-        "Authorization": authHash,
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Podcast Index error:", errText);
-      throw Object.assign(
-        new Error(`Podcast Index API error: HTTP ${response.status}`),
-        { code: ErrorCode.PODCAST_INDEX_FAILED, httpStatus: 500 },
-      );
-    }
-
-    return response.json();
-  } catch (err) {
-    if ((err as Error).name === "AbortError") {
-      throw Object.assign(
-        new Error(`Podcast Index API timed out after ${TIMEOUT_PODCAST_INDEX / 1000}s`),
-        { code: ErrorCode.PODCAST_INDEX_TIMEOUT, httpStatus: 500 },
-      );
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 // ---------------------------------------------------------------------------

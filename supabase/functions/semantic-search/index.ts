@@ -9,7 +9,7 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -237,10 +237,14 @@ Deno.serve(async (req: Request) => {
       chunks = res.data;
       searchErr = res.error;
     } else if (scopeType === "podcast") {
-      // For podcast scope, use global search then filter
+      // For podcast scope, use match_chunks_global with a large enough pool
+      // to capture all the target podcast's chunks, then filter by podcast_id.
+      // This is more reliable than the previous approach which used a fixed
+      // match_count and could miss results when the target podcast's chunks
+      // ranked lower globally. We request up to 500 results to ensure coverage.
       const res = await supabase.rpc("match_chunks_global", {
         query_embedding: JSON.stringify(queryEmbedding),
-        match_count: searchLimit + searchOffset,
+        match_count: 500,
         match_threshold: searchThreshold,
         match_offset: 0,
       });

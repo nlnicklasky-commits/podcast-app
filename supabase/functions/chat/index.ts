@@ -13,7 +13,7 @@ const ALLOWED_ORIGINS = [
 
 function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -259,13 +259,40 @@ Deno.serve(async (req: Request) => {
       }));
     }
 
-    // 6. Send to Groq
+    // 6. Send to Groq — with context length guard
+    // Estimate total tokens using length/4 heuristic. Llama 3.3 has 128K context.
+    const TOKEN_BUDGET = 100_000; // leave headroom below 128K for response + safety
+    const systemContent = `${SYSTEM_PROMPT_TEMPLATE}${context}`;
+    let estimatedTokens = Math.ceil(systemContent.length / 4) + Math.ceil(question.length / 4);
+
+    // Truncate history first if over budget
+    let trimmedHistory = [...history];
+    for (const msg of trimmedHistory) {
+      estimatedTokens += Math.ceil(msg.content.length / 4);
+    }
+    while (estimatedTokens > TOKEN_BUDGET && trimmedHistory.length > 0) {
+      const removed = trimmedHistory.shift()!;
+      estimatedTokens -= Math.ceil(removed.content.length / 4);
+    }
+
+    // If still over budget after removing all history, reduce chunk count
+    let finalContext = context;
+    if (estimatedTokens > TOKEN_BUDGET && contextParts.length > 1) {
+      // Rebuild context with fewer chunks until within budget
+      let reducedParts = [...contextParts];
+      while (estimatedTokens > TOKEN_BUDGET && reducedParts.length > 1) {
+        const removed = reducedParts.pop()!;
+        estimatedTokens -= Math.ceil(removed.length / 4);
+      }
+      finalContext = reducedParts.join("\n\n---\n\n");
+    }
+
     const messages = [
       {
         role: "system",
-        content: `${SYSTEM_PROMPT_TEMPLATE}${context}`,
+        content: finalContext === context ? systemContent : `${SYSTEM_PROMPT_TEMPLATE}${finalContext}`,
       },
-      ...history,
+      ...trimmedHistory,
       { role: "user", content: question },
     ];
 

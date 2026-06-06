@@ -1,17 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import { AuthProvider } from './lib/AuthContext'
 import { useAuth } from './lib/useAuth'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import KnowledgeBase from './pages/KnowledgeBase'
-import PodcastDetail from './pages/PodcastDetail'
-import SearchPage from './pages/SearchPage'
-import ProfilePage from './pages/ProfilePage'
-import DiscoverPage from './pages/DiscoverPage'
-import AuthPage from './pages/AuthPage'
-import PrivacyPolicy from './pages/PrivacyPolicy'
-import TermsOfService from './pages/TermsOfService'
+
+const Home = lazy(() => import('./pages/Home'))
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'))
+const PodcastDetail = lazy(() => import('./pages/PodcastDetail'))
+const SearchPage = lazy(() => import('./pages/SearchPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const DiscoverPage = lazy(() => import('./pages/DiscoverPage'))
+const AuthPage = lazy(() => import('./pages/AuthPage'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 
 function AuthGate({ children }) {
   const { loading } = useAuth()
@@ -50,38 +52,42 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ErrorBoundary>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/auth" element={<AuthRoute />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsOfService />} />
+          <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--bg)]"><div className="mute text-sm">Loading...</div></div>}>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/auth" element={<AuthRoute />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
 
-            {/* Protected routes */}
-            <Route
-              path="/*"
-              element={
-                <AuthGate>
-                  <Layout>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="/search" element={<SearchPage />} />
-                      <Route path="/discover" element={<DiscoverPage />} />
-                      <Route path="/kb/:id" element={<KnowledgeBase />} />
-                      <Route path="/kb/:kbId/podcast/:podcastId" element={<PodcastDetail />} />
-                      <Route path="/podcast/:podcastId" element={<PodcastDetail />} />
-                      <Route path="/profile" element={<ProfilePage />} />
-                      <Route path="*" element={
-                        <div className="flex flex-col items-center justify-center h-full gap-3">
-                          <h1 className="serif text-2xl font-medium">Page not found</h1>
-                          <Link to="/" className="text-sm text-[var(--accent)]">Back to home</Link>
-                        </div>
-                      } />
-                    </Routes>
-                  </Layout>
-                </AuthGate>
-              }
-            />
-          </Routes>
+              {/* Protected routes */}
+              <Route
+                path="/*"
+                element={
+                  <AuthGate>
+                    <Layout>
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="mute text-sm">Loading...</div></div>}>
+                        <Routes>
+                          <Route path="/" element={<Home />} />
+                          <Route path="/search" element={<SearchPage />} />
+                          <Route path="/discover" element={<DiscoverPage />} />
+                          <Route path="/kb/:id" element={<KnowledgeBase />} />
+                          <Route path="/kb/:kbId/podcast/:podcastId" element={<PodcastDetail />} />
+                          <Route path="/podcast/:podcastId" element={<PodcastDetail />} />
+                          <Route path="/profile" element={<ProfilePage />} />
+                          <Route path="*" element={
+                            <div className="flex flex-col items-center justify-center h-full gap-3">
+                              <h1 className="serif text-2xl font-medium">Page not found</h1>
+                              <Link to="/" className="text-sm text-[var(--accent)]">Back to home</Link>
+                            </div>
+                          } />
+                        </Routes>
+                      </Suspense>
+                    </Layout>
+                  </AuthGate>
+                }
+              />
+            </Routes>
+          </Suspense>
         </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>

@@ -47,7 +47,7 @@ export async function podcastIndexFetch(
       );
     }
 
-    return response.json();
+    return await response.json();
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       throw Object.assign(

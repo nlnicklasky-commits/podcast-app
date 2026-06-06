@@ -27,7 +27,7 @@ Built for Nick (personal use first), with potential to productize later. Archite
 
 - **Frontend**: React 19 + Vite 8 + Tailwind CSS 4 + React Router 7
 - **Backend/Database**: Supabase (Postgres, Auth, Edge Functions, Storage)
-- **AI/ML**: OpenAI — Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights), GPT-4o-mini (chat)
+- **AI/ML**: OpenAI — GPT-4o-mini (insights), text-embedding-3-small (embeddings); Groq — Whisper (transcription), Llama 3.3 70B (chat)
 - **Podcast Discovery**: Podcast Index API (free, open podcast directory with RSS feeds)
 - **Deployment**: Vercel (frontend, auto-deploy on push to GitHub)
 
@@ -36,8 +36,9 @@ Built for Nick (personal use first), with potential to productize later. Archite
 - No Python, no virtual environments — entire stack is JavaScript
 - Supabase handles DB, auth, storage, and vector search (pgvector) in one place
 - Nick already uses Supabase for happened-live, so familiar territory
-- OpenAI handles everything: Whisper for transcription, embeddings, GPT-4o/mini for insights and chat
-- Edge Functions handle API calls to OpenAI + Podcast Index server-side (keeps keys safe)
+- Groq for transcription (Whisper — faster and cheaper than OpenAI Whisper) and chat (Llama 3.3 70B — free tier, fast inference)
+- OpenAI for embeddings (text-embedding-3-small) and insights (GPT-4o-mini)
+- Edge Functions handle API calls to OpenAI, Groq, + Podcast Index server-side (keeps keys safe)
 - Podcast Index provides legally clean RSS feed audio URLs — no scraping or YouTube TOS issues
 
 ## Project Structure
@@ -59,9 +60,7 @@ podcast-app/
 ├── public/
 ├── CLAUDE.md
 ├── package.json
-├── vite.config.js
-├── tailwind.config.js
-└── postcss.config.js
+└── vite.config.js
 ```
 
 ## Database Schema (Supabase Postgres)
@@ -72,6 +71,7 @@ podcast-app/
 - `id` (uuid, PK)
 - `name` (text) — e.g., "AI Startups"
 - `description` (text, nullable)
+- `user_id` (uuid, nullable, FK → auth.users) — owner; NULL for pre-auth data
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
 
@@ -82,7 +82,7 @@ podcast-app/
 - `episode_index_id` (bigint, nullable) — Podcast Index episode ID, used for deduplication
 - `feed_url` (text, nullable) — RSS feed URL
 - `enclosure_url` (text, nullable) — direct audio file URL from RSS feed
-- `source` (text, nullable) — 'podcast_index' or null (YouTube)
+- `source` (text) — 'podcast_index' or 'youtube'
 - `url` (text) — original URL (YouTube URL or episode link)
 - `title` (text, nullable)
 - `channel` (text, nullable) — show name
@@ -91,6 +91,8 @@ podcast-app/
 - `status` (text) — pending | downloading | transcribing | processing | ready | error | cancelled
 - `progress` (real, default 0) — 0-100 overall processing progress, written by edge function
 - `error_message` (text, nullable)
+- `transcript_url` (text, nullable) — URL to RSS transcript if available
+- `user_id` (uuid, nullable, FK → auth.users) — owner; NULL for pre-auth data
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
 
@@ -139,6 +141,7 @@ podcast-app/
 - `id` (uuid, PK)
 - `knowledge_base_id` (uuid, FK → knowledge_bases)
 - `title` (text, nullable)
+- `user_id` (uuid, nullable, FK → auth.users) — owner; NULL for pre-auth data
 - `created_at` (timestamptz)
 
 **messages**
@@ -156,6 +159,36 @@ podcast-app/
 - `message` (text)
 - `created_at` (timestamptz)
 
+**search_history**
+- `id` (uuid, PK)
+- `query` (text)
+- `result_count` (int)
+- `scope_type` (text) — 'knowledge_base' or 'global'
+- `scope_id` (uuid, nullable) — KB id if scoped
+- `user_id` (uuid, nullable, FK → auth.users)
+- `created_at` (timestamptz)
+
+**playback_progress**
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → auth.users, CASCADE delete)
+- `podcast_id` (uuid, FK → podcasts, CASCADE delete)
+- `current_time` (float)
+- `duration` (float)
+- `completed` (boolean, default false)
+- `created_at` (timestamptz)
+- `updated_at` (timestamptz)
+
+**feed_subscriptions**
+- `id` (uuid, PK)
+- `user_id` (uuid, FK → auth.users, CASCADE delete)
+- `feed_id` (bigint) — Podcast Index feed ID
+- `feed_url` (text)
+- `feed_title` (text)
+- `auto_process` (boolean, default false)
+- `active` (boolean, default true)
+- `created_at` (timestamptz)
+- `updated_at` (timestamptz)
+
 ## Development Phases
 
 ### Phase 1 — Foundation (MVP) ✅
@@ -170,7 +203,7 @@ podcast-app/
 ### Phase 2 — Processing Pipeline ✅
 - [x] Audio download (RSS direct or Cobalt for YouTube fallback) — no local tools needed
 - [x] Supabase Edge Function: download → transcription → chunking → embeddings → insights
-- [x] OpenAI Whisper transcription
+- [x] Groq Whisper transcription (whisper-large-v3)
 - [x] Chunking logic (time-based with sentence boundary respect)
 - [x] Store chunks with timestamps in Supabase
 - [x] Real-time progress tracking (0-100% written by edge function, polled every 2s)
@@ -194,13 +227,13 @@ podcast-app/
 - [ ] Search UI with results showing podcast source + timestamp
 
 ### Phase 4 — AI Insights ✅
-- [x] GPT-4o integration for summarization (via Edge Function)
+- [x] GPT-4o-mini integration for summarization (via Edge Function)
 - [x] Auto-generate insights per podcast (summary, topics, key points, entities)
 - [x] Insights panel in UI
 - [x] Knowledge base-level synthesis (themes across all podcasts)
 
 ### Phase 5 — Chat (RAG) ✅
-- [x] RAG pipeline: query → vector search → context assembly → GPT-4o-mini response
+- [x] RAG pipeline: query → vector search → context assembly → Groq Llama 3.3 70B response
 - [x] Source citations with timestamps
 - [x] Conversation history per knowledge base
 - [x] Chat UI component
@@ -221,6 +254,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 # API Keys (server-side only — set as Supabase secrets, NOT in frontend)
 OPENAI_API_KEY=your-openai-key
+GROQ_API_KEY=your-groq-key
 PODCAST_INDEX_KEY=your-podcast-index-key
 PODCAST_INDEX_SECRET=your-podcast-index-secret
 ```
@@ -245,8 +279,8 @@ npm run build
 - **No Python in the stack** — entire stack is JavaScript
 - **Podcast Index as primary source** — free, open API with direct RSS audio URLs. Legally clean (RSS feeds are public), no scraping, no YouTube TOS issues. Perfect for productizing later.
 - **YouTube as fallback only** — users can still paste YouTube URLs, which use Cobalt (Railway) for audio extraction. But Podcast Index search is the recommended path.
-- **OpenAI for everything** — single API key handles transcription (Whisper), embeddings (text-embedding-3-small), insights (GPT-4o), and chat (GPT-4o-mini). Simpler than juggling multiple providers.
-- **GPT-4o-mini for chat** — ~10x cheaper than GPT-4o, good enough for RAG queries. GPT-4o still used for insights (one-time per podcast).
+- **Multi-provider AI** — OpenAI for embeddings (text-embedding-3-small) and insights (GPT-4o-mini). Groq for transcription (Whisper large-v3, faster and cheaper than OpenAI Whisper) and chat (Llama 3.3 70B, free tier with fast inference). Two API keys, but each provider plays to its strengths.
+- **GPT-4o-mini for insights** — good enough for one-time-per-podcast summarization at low cost. Groq Llama 3.3 70B handles the high-volume chat queries on the free tier.
 - **pgvector over ChromaDB** — keeps vectors in the same Postgres database, one less service
 - **Knowledge bases as first-class concept** — not a flat podcast list, but organized collections with their own chat and insights
 - **Standalone Podcasts section** — podcasts exist independently and can be added to multiple KBs via junction table
@@ -263,10 +297,10 @@ The entire pipeline runs in a single Supabase Edge Function:
 
 1. **Download audio** — For Podcast Index episodes: downloads directly from RSS `enclosure_url`. For YouTube: calls Cobalt API (Railway) to get audio. (0-15%)
 2. **Upload to Storage** — Uploads audio to Supabase Storage `podcast-audio` bucket as backup (15-30%)
-3. **Transcribe** — Sends audio to OpenAI Whisper, stores transcript with timestamped segments (30-55%)
+3. **Transcribe** — Sends audio to Groq Whisper (whisper-large-v3), stores transcript with timestamped segments (30-55%)
 4. **Chunk** — Splits transcript into chunks (~500 tokens, sentence boundary respect) (55-60%)
 5. **Embed** — Generates embeddings via OpenAI text-embedding-3-small (batches of 20) (60-90%)
-6. **Insights** — GPT-4o generates summary, topics, key points, and entities (90-99%)
+6. **Insights** — GPT-4o-mini generates summary, topics, key points, and entities (90-99%)
 7. **Done** — Status set to `ready`, progress = 100%, Storage audio file cleaned up
 
 Progress is written as actual 0-100% to `podcasts.progress` at each step. The frontend polls every 2 seconds and displays the real value.
@@ -278,11 +312,15 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 | Function | Version | Purpose |
 |----------|---------|---------|
 | `process-podcast` | v14 | Full processing pipeline (download → transcribe → embed → insights) |
-| `chat` | v5 | RAG chat — vector search + GPT-4o-mini response with citations |
+| `chat` | v5 | RAG chat — vector search + Groq Llama 3.3 70B response with citations |
 | `podcast-search` | v2 | Search Podcast Index API for shows by term |
 | `podcast-episodes` | v2 | Get episodes for a Podcast Index feed by feed ID |
 | `youtube-search` | v4 | YouTube search via InnerTube API (kept as fallback, not used in primary UI) |
-| `synthesize-kb` | v1 | KB-level cross-podcast synthesis — themes, agreements, disagreements via GPT-4o |
+| `synthesize-kb` | v1 | KB-level cross-podcast synthesis — themes, agreements, disagreements via GPT-4o-mini |
+| `semantic-search` | v1 | Vector similarity search across chunks within a KB or globally |
+| `poll-subscriptions` | v1 | Check feed subscriptions for new episodes and trigger processing |
+| `resolve-feeds` | v1 | Resolve RSS feed URLs and extract feed metadata |
+| `podcast-discover` | v1 | Discover trending/recommended podcasts via Podcast Index |
 
 ### Podcast Index API
 
@@ -304,7 +342,7 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 
 - **Bucket**: `podcast-audio` (private)
 - **RLS**: anon can INSERT, SELECT, UPDATE, DELETE; service_role has full access
-- Audio files are uploaded by the edge function, used for Whisper transcription, then deleted after processing
+- Audio files are uploaded by the edge function, used for Groq Whisper transcription, then deleted after processing
 
 ### Cancellation Flow
 
@@ -330,7 +368,8 @@ All secrets live in `.env` or `.env.local` at project root (gitignored). NEVER h
 | Service | Env Var(s) | What it's for |
 |---------|-----------|---------------|
 | **Supabase** | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Database, auth, RLS, realtime. Project: `podcast-brain` (id: vxxmlieonejwyojenrsh) |
-| **OpenAI** | `OPENAI_API_KEY` | Whisper (transcription), text-embedding-3-small (embeddings), GPT-4o (insights), GPT-4o-mini (chat). Server-side only via Edge Functions. |
+| **OpenAI** | `OPENAI_API_KEY` | text-embedding-3-small (embeddings), GPT-4o-mini (insights). Server-side only via Edge Functions. |
+| **Groq** | `GROQ_API_KEY` | Whisper large-v3 (transcription), Llama 3.3 70B (chat). Server-side only via Edge Functions. |
 | **Podcast Index** | `PODCAST_INDEX_KEY`, `PODCAST_INDEX_SECRET` | Show search and episode listing via Podcast Index API. Server-side only via Edge Functions. |
 | **Notion** | `NOTION_API_KEY` | Shared across all projects. Used for logging, tracking, project state. Notion is the source of truth. |
 | **Vercel** | Vercel CLI auth | Deployment platform. Vercel org: `nick-laskys-projects`. Deploy with `vercel --prod`. Project: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG) |

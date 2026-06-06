@@ -158,7 +158,7 @@ export default function OPMLImportModal({ onClose }) {
         {/* Header */}
         <div className="flex items-center px-[18px] py-3.5 shrink-0 border-b border-[var(--border)]">
           <h3 className="m-0 text-[15px] font-medium flex-1">Import OPML</h3>
-          <button onClick={onClose} className="ml-auto mute shrink-0">
+          <button onClick={onClose} className="ml-auto mute shrink-0" aria-label="Close">
             <Icons.X size={16} />
           </button>
         </div>

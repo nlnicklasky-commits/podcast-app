@@ -9,6 +9,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef(null)
   const navigate = useNavigate()
   const isSearchMode = query.startsWith('?') && query.length > 1
@@ -22,6 +23,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
       setQuery('')
       setSearchResults([])
       setSearching(false)
+      setActiveIndex(0)
     }
   }, [open])
 
@@ -122,8 +124,17 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
                     navigate(`/search?q=${encodeURIComponent(searchQuery)}`)
                     onClose(null)
                   }
-                } else if (items[0]) {
-                  handleSelect(items[0])
+                } else if (items[activeIndex]) {
+                  handleSelect(items[activeIndex])
+                }
+              }
+              if (!isSearchMode) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setActiveIndex((prev) => Math.min(prev + 1, items.length - 1))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setActiveIndex((prev) => Math.max(prev - 1, 0))
                 }
               }
             }}
@@ -203,7 +214,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
                   key={`${it.kind}-${it.label}-${i}`}
                   onClick={() => handleSelect(it)}
                   className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
-                    i === 0
+                    i === activeIndex
                       ? 'bg-[var(--surface)] border-l-[var(--accent)]'
                       : 'bg-transparent border-l-transparent'
                   }`}

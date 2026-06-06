@@ -23,7 +23,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   }, [activeConvId])
 
   useEffect(() => {
-    endRef.current?.scrollTo({ top: 999999, behavior: 'smooth' })
+    endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
   async function send(text) {
@@ -81,15 +81,12 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
             <button onClick={startNew} title="New chat" className="mute p-1">
               <Icons.Plus size={14} />
             </button>
-            <button title="History" className="mute p-1">
-              <Icons.More size={14} />
-            </button>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div ref={endRef} className="flex-1 overflow-y-auto px-[18px] py-4">
+      <div className="flex-1 overflow-y-auto px-[18px] py-4">
         {messages.length === 0 && !loading && (
           <div className="fade-in">
             <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-2.5">Try</div>
@@ -113,6 +110,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
           ))}
           {loading && <ThinkingDots />}
         </div>
+        <div ref={endRef} />
       </div>
 
       {/* Error */}
@@ -135,6 +133,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) }
             }}
             placeholder="Ask about these podcasts..."
+            aria-label="Message"
             rows={1}
             className="flex-1 bg-transparent border-none outline-none resize-none text-[13.5px] leading-relaxed max-h-[120px] text-[var(--text)]"
             disabled={loading}

@@ -40,7 +40,7 @@ export default function Layout({ children }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paletteOpen])
+  }, [paletteOpen, navigate])
 
   const handlePaletteClose = useCallback((action) => {
     setPaletteOpen(false)

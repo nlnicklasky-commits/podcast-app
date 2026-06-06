@@ -183,6 +183,7 @@ export default function DiscoverPage() {
           onClose={() => setBrowseShow(null)}
           onAddFromIndex={handleAddFromIndex}
           knowledgeBaseId={null}
+          initialShow={browseShow}
         />
       )}
     </div>
