@@ -3,6 +3,14 @@ import { sendMessage, listConversations, getMessages } from '../services/chat'
 import { formatTimestamp } from '../lib/utils'
 import * as Icons from './Icons'
 
+function parseFollowUps(content) {
+  const match = content.match(/FOLLOW_UPS:\s*(.+)$/m)
+  if (!match) return { text: content, followUps: [] }
+  const text = content.replace(/FOLLOW_UPS:\s*.+$/m, '').trim()
+  const followUps = match[1].split('|').map(q => q.trim()).filter(Boolean)
+  return { text, followUps }
+}
+
 export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount = 0 }) {
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
@@ -10,6 +18,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [followUps, setFollowUps] = useState([])
   const endRef = useRef(null)
 
   useEffect(() => {
@@ -30,6 +39,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
     if (!text.trim() || loading) return
     const question = text.trim()
     setInput('')
+    setFollowUps([])
     setError(null)
     setMessages((prev) => [...prev, { role: 'user', content: question, id: 'temp-user' }])
     setLoading(true)
@@ -43,10 +53,12 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
           ...prev,
         ])
       }
+      const { text: parsedText, followUps: suggestions } = parseFollowUps(result.answer)
+      setFollowUps(suggestions)
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== 'temp-user'),
         { role: 'user', content: question },
-        { role: 'assistant', content: result.answer, sources: result.sources },
+        { role: 'assistant', content: parsedText, sources: result.sources },
       ])
     } catch (err) {
       setError(err.message)
@@ -111,6 +123,20 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
           {loading && <ThinkingDots />}
         </div>
         <div ref={endRef} />
+
+        {followUps.length > 0 && !loading && (
+          <div className="flex flex-wrap gap-1.5 mt-2 mb-3 px-[18px]">
+            {followUps.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => send(q)}
+                className="px-2.5 py-1.5 text-[11px] bg-[var(--surface)] border border-[var(--border)] rounded-full text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Error */}
@@ -238,7 +264,7 @@ function ThinkingDots() {
           />
         ))}
       </span>
-      searching chunks...
+      Searching your podcasts...
     </div>
   )
 }

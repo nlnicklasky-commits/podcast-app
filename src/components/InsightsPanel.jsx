@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { getInsights } from '../services/processing'
 import { insightsToMarkdown, downloadMarkdown, slugify } from '../lib/export'
+import { useToast } from '../lib/ToastContext'
 import { Tag } from './ui'
 import * as Icons from './Icons'
 
 export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
+  const { addToast } = useToast()
   const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -21,6 +23,7 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
     const md = insightsToMarkdown(podData, insights)
     const filename = `${slugify(podData.title || 'podcast')}-insights.md`
     downloadMarkdown(md, filename)
+    addToast('Insights exported', 'success')
   }
 
   if (loading) {

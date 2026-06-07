@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { listKnowledgeBases } from '../services/knowledgeBases'
 import { addPodcastToKB } from '../services/podcasts'
+import { useToast } from '../lib/ToastContext'
 import { KBGlyph } from './ui'
 import * as Icons from './Icons'
 
 export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, onAdded }) {
+  const { addToast } = useToast()
   const [knowledgeBases, setKnowledgeBases] = useState([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(null)
@@ -29,6 +31,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
     setError('')
     try {
       await addPodcastToKB(kb.id, podcastId)
+      addToast('Added to knowledge base', 'success')
       onAdded?.({ id: kb.id, name: kb.name })
       onClose()
     } catch (err) {

@@ -106,7 +106,7 @@ Deno.serve(async (req: Request) => {
     );
 
     return new Response(JSON.stringify({ results }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
     });
   } catch (err) {
     console.error("Podcast search error:", err);

@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ categories }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } },
       );
     }
 
@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({ shows }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } },
       );
     }
 

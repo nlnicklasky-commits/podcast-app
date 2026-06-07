@@ -39,6 +39,8 @@ const TIMEOUT_CHAT = 2 * 60 * 1000;       // 2 min
 // System prompt
 const SYSTEM_PROMPT_TEMPLATE = `You are a helpful podcast research assistant. Answer questions based on the podcast transcript excerpts provided below. Always cite your sources using [Source N] notation. If the context doesn't contain enough information to answer fully, say so.
 
+After your answer, suggest 2-3 brief follow-up questions the user might want to ask next. Format them on the last line as: FOLLOW_UPS: question 1 | question 2 | question 3
+
 Relevant podcast excerpts:
 `;
 
@@ -139,16 +141,17 @@ Deno.serve(async (req: Request) => {
     );
 
     // Extract user_id from the incoming JWT for user-scoped writes
+    // Direct decode avoids a network round-trip vs getUser()
     let callingUserId: string | null = null;
     const authHeader = req.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const userClient = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } },
-      );
-      const { data: { user } } = await userClient.auth.getUser();
-      callingUserId = user?.id ?? null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        callingUserId = payload.sub || null;
+      } catch {
+        callingUserId = null;
+      }
     }
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");

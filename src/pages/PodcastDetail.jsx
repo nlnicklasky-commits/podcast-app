@@ -5,6 +5,7 @@ import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelPro
 import { getPodcastKBs } from '../services/podcasts'
 import { getProgress, saveProgress } from '../services/playback'
 import { useAuth } from '../lib/useAuth'
+import { useToast } from '../lib/ToastContext'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
@@ -21,6 +22,7 @@ const COMPLETION_THRESHOLD = 0.9
 export default function PodcastDetail() {
   const { kbId, podcastId } = useParams()
   const navigate = useNavigate()
+  const { addToast } = useToast()
   const [searchParams] = useSearchParams()
   const timestampParam = searchParams.get('t')
   const [podcast, setPodcast] = useState(null)
@@ -252,6 +254,7 @@ export default function PodcastDetail() {
     setProcessingStartedAt(new Date().toISOString())
     setProcessingFinishedAt(null)
     setPodcast((prev) => ({ ...prev, status: 'downloading', error_message: null, progress: 0 }))
+    addToast('Processing started', 'info')
     try {
       await processPodcast(podcastId)
     } catch (err) {
@@ -429,16 +432,18 @@ export default function PodcastDetail() {
         </div>
 
         {/* Processing progress */}
-        <div
-          className="p-3 sm:p-4 mb-4 sm:mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
-        >
-          <ProcessingProgress
-            status={podcast.status}
-            startedAt={processingStartedAt}
-            finishedAt={processingFinishedAt}
-            progress={podcast.progress}
-          />
-        </div>
+        {podcast.status !== 'ready' && (
+          <div
+            className="p-3 sm:p-4 mb-4 sm:mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
+          >
+            <ProcessingProgress
+              status={podcast.status}
+              startedAt={processingStartedAt}
+              finishedAt={processingFinishedAt}
+              progress={podcast.progress}
+            />
+          </div>
+        )}
 
         {/* Audio Player */}
         {podcast.enclosure_url && (
@@ -496,17 +501,19 @@ export default function PodcastDetail() {
         </div>
 
         {/* Tab content */}
-        {activeTab === 'insights' && (
-          <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} podcast={podcast} />
-        )}
+        <div key={activeTab} className="fade-in">
+          {activeTab === 'insights' && (
+            <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} podcast={podcast} />
+          )}
 
-        {activeTab === 'transcript' && (
-          <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} audioRef={audioRef} />
-        )}
+          {activeTab === 'transcript' && (
+            <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} audioRef={audioRef} />
+          )}
 
-        {activeTab === 'processing' && (
-          <ProcessingLog podcastId={podcastId} status={podcast.status} />
-        )}
+          {activeTab === 'processing' && (
+            <ProcessingLog podcastId={podcastId} status={podcast.status} />
+          )}
+        </div>
       </div>
 
       {showAddToKB && (

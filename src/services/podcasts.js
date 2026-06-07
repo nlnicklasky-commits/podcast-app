@@ -20,7 +20,7 @@ function fireProcessing(podcastId) {
 export async function listAllPodcasts() {
   const { data, error } = await supabase
     .from('podcasts')
-    .select('*')
+    .select('id, title, channel, status, progress, duration_seconds, thumbnail_url, transcript_url, created_at')
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(`Failed to load podcasts: ${error.message}`)
@@ -286,9 +286,7 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
   }
 
   const withTranscript = insertedPodcasts.filter(p => p.transcript_url)
-  for (const p of withTranscript) {
-    fireProcessing(p.id)
-  }
+  await Promise.all(withTranscript.map(p => fireProcessing(p.id)))
 
   return {
     added: insertedPodcasts.length,

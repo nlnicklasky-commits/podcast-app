@@ -214,41 +214,43 @@ export default function KnowledgeBase() {
             ))}
           </div>
 
-          {/* Episodes tab */}
-          {activeSection === 'episodes' && (
-            <div>
-              {podcasts.length === 0 ? (
-                <div
-                  className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
-                >
-                  <p className="mute mb-1">No podcasts yet</p>
-                  <p className="text-sm mute">Search for a podcast to get started.</p>
-                  <button
-                    onClick={() => setShowAdd(true)}
-                    className="mt-4 px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
+          <div key={activeSection} className="fade-in">
+            {/* Episodes tab */}
+            {activeSection === 'episodes' && (
+              <div>
+                {podcasts.length === 0 ? (
+                  <div
+                    className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
                   >
-                    Add your first podcast
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {podcasts.map((p) => (
-                    <PodcastRow
-                      key={p.id}
-                      podcast={p}
-                      onClick={() => navigate(`/kb/${id}/podcast/${p.id}`)}
-                      onDelete={() => handleDeletePodcast(p.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                    <p className="mute mb-1">No podcasts yet</p>
+                    <p className="text-sm mute">Search for a podcast to get started.</p>
+                    <button
+                      onClick={() => setShowAdd(true)}
+                      className="mt-4 px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
+                    >
+                      Add your first podcast
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {podcasts.map((p) => (
+                      <PodcastRow
+                        key={p.id}
+                        podcast={p}
+                        onClick={() => navigate(`/kb/${id}/podcast/${p.id}`)}
+                        onDelete={() => handleDeletePodcast(p.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {/* Synthesis tab */}
-          {activeSection === 'synthesis' && (
-            <SynthesisPanel knowledgeBaseId={id} kbName={kb.name} readyCount={readyCount} />
-          )}
+            {/* Synthesis tab */}
+            {activeSection === 'synthesis' && (
+              <SynthesisPanel knowledgeBaseId={id} kbName={kb.name} readyCount={readyCount} />
+            )}
+          </div>
         </div>
       </div>
 

@@ -97,7 +97,7 @@ export default function Layout({ children }) {
             <div className="text-[10px] mute mono tracking-[0.06em]">v0.4 · personal</div>
           </div>
           {/* Mobile close */}
-          <button className="ml-auto md:hidden mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setSidebarOpen(false)}>
+          <button aria-label="Close navigation" className="ml-auto md:hidden mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setSidebarOpen(false)}>
             <Icons.X size={16} />
           </button>
         </div>
@@ -142,6 +142,7 @@ export default function Layout({ children }) {
             Knowledge Bases
           </span>
           <button
+            aria-label="New knowledge base"
             onClick={() => window.dispatchEvent(new CustomEvent('podbrain:new-kb'))}
             title="New KB"
             className="mute p-0.5"
@@ -166,7 +167,7 @@ export default function Layout({ children }) {
                 <KBGlyph name={kb.name} size={20} />
                 <span className="flex-1 truncate">{kb.name}</span>
                 <span className="text-[10px] mono mute">
-                  {kb.knowledge_base_podcasts?.[0]?.count ?? 0}
+                  {kb.knowledge_base_podcasts?.[0]?.count ?? 0} eps
                 </span>
               </button>
             )
@@ -180,7 +181,7 @@ export default function Layout({ children }) {
         <div className="px-2 pt-2.5 mt-2 border-t border-[var(--border-soft)] space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] mute mono">{totalHours.toFixed(1)} h indexed</span>
-            <button className="mute" title="Profile" onClick={() => navigate('/profile')}><Icons.Settings size={15} /></button>
+            <button aria-label="Profile settings" className="mute" title="Profile" onClick={() => navigate('/profile')}><Icons.Settings size={15} /></button>
           </div>
           <div className="flex items-center gap-2 text-[10px] mute">
             <a
@@ -206,7 +207,7 @@ export default function Layout({ children }) {
         <div
           className="flex md:hidden items-center gap-3 px-4 py-3 shrink-0 border-b border-[var(--border)] bg-[var(--bg)]"
         >
-          <button onClick={() => setSidebarOpen(true)} className="mute min-w-[44px] min-h-[44px] flex items-center justify-center">
+          <button aria-label="Open navigation" onClick={() => setSidebarOpen(true)} className="mute min-w-[44px] min-h-[44px] flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -219,7 +220,7 @@ export default function Layout({ children }) {
             </div>
             <span className="font-semibold text-sm">PodBrain</span>
           </div>
-          <button className="ml-auto mute min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setPaletteOpen(true)}>
+          <button aria-label="Search" className="ml-auto mute min-w-[44px] min-h-[44px] flex items-center justify-center" onClick={() => setPaletteOpen(true)}>
             <Icons.Search size={18} />
           </button>
         </div>

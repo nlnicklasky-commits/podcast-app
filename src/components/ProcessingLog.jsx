@@ -21,17 +21,13 @@ export default function ProcessingLog({ podcastId, status }) {
 
     getProcessingLogs(podcastId).then(setLogs)
 
-    if (isActive || status === 'ready' || status === 'error') {
-      const poll = setInterval(async () => {
-        const data = await getProcessingLogs(podcastId)
-        setLogs(data)
-        if (status === 'ready' || status === 'error') {
-          clearInterval(poll)
-        }
-      }, 3000)
-      return () => clearInterval(poll)
-    }
-  }, [podcastId, status, isActive])
+    if (!isActive) return
+
+    const poll = setInterval(() => {
+      getProcessingLogs(podcastId).then(setLogs)
+    }, 3000)
+    return () => clearInterval(poll)
+  }, [podcastId, isActive])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

@@ -216,7 +216,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ episodes, locked: feedLocked, hasMore, oldestTimestamp }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } },
     );
   } catch (err) {
     console.error("Podcast episodes error:", err);
