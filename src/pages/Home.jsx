@@ -8,6 +8,7 @@ import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { formatDate, timeAgo } from '../lib/utils'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
+import { HomeSkeleton } from '../components/Skeleton'
 import * as Icons from '../components/Icons'
 
 export default function Home() {
@@ -61,11 +62,7 @@ export default function Home() {
   }
 
   if (!loaded) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="mute text-sm">Loading...</div>
-      </div>
-    )
+    return <HomeSkeleton />
   }
   const processingPodcasts = podcasts.filter((p) =>
     ['downloading', 'transcribing', 'processing'].includes(p.status),

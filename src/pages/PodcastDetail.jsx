@@ -13,6 +13,7 @@ import ProcessingLog from '../components/ProcessingLog'
 import { StatusPip, Tag } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
+import { PodcastDetailSkeleton } from '../components/Skeleton'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
@@ -274,7 +275,7 @@ export default function PodcastDetail() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-full mute text-sm">Loading...</div>
+    return <PodcastDetailSkeleton />
   }
   if (!podcast) {
     return (

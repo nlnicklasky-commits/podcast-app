@@ -12,6 +12,7 @@ import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
 import { fullKBToMarkdown, downloadMarkdown, slugify } from '../lib/export'
+import { KBDetailSkeleton } from '../components/Skeleton'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -105,11 +106,7 @@ export default function KnowledgeBase() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="mute text-sm">Loading...</div>
-      </div>
-    )
+    return <KBDetailSkeleton />
   }
 
   if (!kb) {

@@ -5,6 +5,7 @@ import SubscribeButton from '../components/SubscribeButton'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { addPodcastFromIndex } from '../services/podcasts'
 import { useData } from '../lib/DataContext'
+import { DiscoverSkeleton } from '../components/Skeleton'
 import * as Icons from '../components/Icons'
 
 export default function DiscoverPage() {
@@ -82,11 +83,7 @@ export default function DiscoverPage() {
   }
 
   if (loadingCategories) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="mute text-sm">Loading...</div>
-      </div>
-    )
+    return <DiscoverSkeleton />
   }
 
   return (
