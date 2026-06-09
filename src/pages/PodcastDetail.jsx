@@ -82,12 +82,23 @@ export default function PodcastDetail() {
     const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
     if (!isActive && !processing) return
 
-    // Clear any existing interval to prevent stacking
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
 
+    const pollStart = Date.now()
+    const MAX_POLL_MS = 15 * 60 * 1000
+    let consecutiveErrors = 0
+
     pollIntervalRef.current = setInterval(async () => {
+      if (Date.now() - pollStart > MAX_POLL_MS) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+        addToast('Processing is taking longer than expected — check back later', 'info')
+        return
+      }
+
       try {
         const result = await getPodcastStatus(podcastId)
+        consecutiveErrors = 0
         if (result) {
           setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message, progress: result.progress }))
           if (result.status === 'ready' || result.status === 'error') {
@@ -106,7 +117,12 @@ export default function PodcastDetail() {
           }
         }
       } catch {
-        // keep polling
+        consecutiveErrors++
+        if (consecutiveErrors >= 5) {
+          clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+          addToast('Lost connection — refresh to check status', 'error')
+        }
       }
     }, 2000)
 
@@ -114,7 +130,7 @@ export default function PodcastDetail() {
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
-  }, [podcast?.status, processing, podcastId])
+  }, [podcast?.status, processing, podcastId, addToast])
 
   function handleProcess() {
     if (processing) return

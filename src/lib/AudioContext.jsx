@@ -132,8 +132,9 @@ export function AudioProvider({ children }) {
   const seek = useCallback((time) => {
     const audio = audioRef.current
     if (!audio) return
-    audio.currentTime = time
-    setCurrentTime(time)
+    const clamped = Math.max(0, Math.min(time, audio.duration || 0))
+    audio.currentTime = clamped
+    setCurrentTime(clamped)
   }, [])
 
   const cycleSpeed = useCallback(() => {

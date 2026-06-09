@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
+import { useToast } from '../lib/ToastContext'
 import { listSubscriptions, unsubscribe, updateSubscription } from '../services/subscriptions'
 import OPMLImportModal from '../components/OPMLImportModal'
 import * as Icons from '../components/Icons'
@@ -9,6 +10,7 @@ import * as Icons from '../components/Icons'
 export default function ProfilePage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { addToast } = useToast()
   const [signingOut, setSigningOut] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -190,6 +192,7 @@ export default function ProfilePage() {
                           setSubscriptions(prev =>
                             prev.map(s => s.id === sub.id ? { ...s, ...updated } : s)
                           )
+                          addToast(checked ? 'Auto-process enabled' : 'Auto-process disabled', 'success')
                         } catch (err) {
                           setError(err.message || 'Failed to update subscription')
                         }
@@ -203,6 +206,7 @@ export default function ProfilePage() {
                       try {
                         await unsubscribe(sub.id)
                         setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
+                        addToast('Unsubscribed', 'success')
                       } catch (err) {
                         setError(err.message || 'Failed to unsubscribe')
                       }
