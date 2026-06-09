@@ -104,7 +104,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
             Ask {kbName}
           </span>
           <div className="ml-auto flex gap-1">
-            <button onClick={startNew} title="New chat" className="mute p-1">
+            <button onClick={startNew} title="New chat" className="mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center">
               <Icons.Plus size={14} />
             </button>
           </div>

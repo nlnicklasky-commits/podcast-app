@@ -89,7 +89,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-3 mb-8">
           <button
             onClick={() => navigate('/')}
-            className="p-1.5 mute hover:text-[var(--text)] transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center mute hover:text-[var(--text)] transition-colors"
           >
             <Icons.Back size={18} />
           </button>
@@ -187,15 +187,16 @@ export default function ProfilePage() {
                       checked={sub.auto_process}
                       onChange={async (e) => {
                         const checked = e.target.checked
+                        setSubscriptions(prev =>
+                          prev.map(s => s.id === sub.id ? { ...s, auto_process: checked } : s)
+                        )
                         try {
-                          const updated = await updateSubscription(sub.id, {
-                            auto_process: checked,
-                          })
-                          setSubscriptions(prev =>
-                            prev.map(s => s.id === sub.id ? { ...s, ...updated } : s)
-                          )
+                          await updateSubscription(sub.id, { auto_process: checked })
                           addToast(checked ? 'Auto-process enabled' : 'Auto-process disabled', 'success')
                         } catch (err) {
+                          setSubscriptions(prev =>
+                            prev.map(s => s.id === sub.id ? { ...s, auto_process: !checked } : s)
+                          )
                           setError(err.message || 'Failed to update subscription')
                         }
                       }}

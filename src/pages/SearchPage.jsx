@@ -604,7 +604,7 @@ export default function SearchPage() {
                 <div className="flex items-center gap-3 mb-4">
                   <button
                     onClick={handleBackToShows}
-                    className="mute p-1 hover:text-[var(--text)] transition-colors"
+                    className="mute min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-[var(--text)] transition-colors"
                   >
                     <Icons.Back size={16} />
                   </button>

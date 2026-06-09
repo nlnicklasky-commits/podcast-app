@@ -246,7 +246,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
         >
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {step === 'episodes' && (
-              <button onClick={handleBackToShows} className="mute p-0.5" disabled={bulkAdding}>
+              <button onClick={handleBackToShows} className="mute min-w-[44px] min-h-[44px] flex items-center justify-center" disabled={bulkAdding}>
                 <Icons.Back size={16} />
               </button>
             )}
