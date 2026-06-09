@@ -9,13 +9,18 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
   const { addToast } = useToast()
   const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
 
-  useEffect(() => {
+  function loadInsights() {
+    setLoading(true)
+    setLoadError(null)
     getInsights(podcastId)
       .then(setInsights)
-      .catch(console.error)
+      .catch((err) => setLoadError(err.message || 'Failed to load insights'))
       .finally(() => setLoading(false))
-  }, [podcastId])
+  }
+
+  useEffect(() => { loadInsights() }, [podcastId])
 
   function handleExport() {
     if (!insights) return
@@ -28,6 +33,20 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
 
   if (loading) {
     return <div className="mute py-8 text-center text-sm">Loading insights...</div>
+  }
+
+  if (loadError && !insights) {
+    return (
+      <div className="text-center py-8 fade-in">
+        <p className="text-[13px] dim mb-3">{loadError}</p>
+        <button
+          onClick={loadInsights}
+          className="px-3 py-1.5 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   if (!insights) {

@@ -7,6 +7,7 @@ export default function CreateKBModal({ onClose, onCreate }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
   const trapRef = useFocusTrap()
   useScrollLock()
 
@@ -14,11 +15,12 @@ export default function CreateKBModal({ onClose, onCreate }) {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
+    setError(null)
     try {
       await onCreate(name.trim(), description.trim())
       onClose()
     } catch (err) {
-      console.error(err)
+      setError(err.message || 'Failed to create knowledge base')
       setLoading(false)
     }
   }
@@ -68,6 +70,9 @@ export default function CreateKBModal({ onClose, onCreate }) {
               className="w-full px-3 py-2 text-[13.5px] outline-none resize-none transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text)]"
             />
           </div>
+          {error && (
+            <p className="text-[12px] text-[var(--error)]">{error}</p>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"

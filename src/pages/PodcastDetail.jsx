@@ -152,7 +152,9 @@ export default function PodcastDetail() {
       await processPodcast(podcastId)
     } catch (err) {
       console.error('Processing failed:', err)
+      setPodcast((prev) => ({ ...prev, status: 'pending' }))
       setProcessing(false)
+      addToast('Failed to start processing', 'error')
     }
   }
 

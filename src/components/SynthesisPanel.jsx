@@ -11,12 +11,16 @@ export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) 
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
+  function loadSynthesis() {
+    setLoading(true)
+    setError(null)
     getSynthesis(knowledgeBaseId)
       .then(setSynthesis)
-      .catch(console.error)
+      .catch((err) => setError(err.message || 'Failed to load synthesis'))
       .finally(() => setLoading(false))
-  }, [knowledgeBaseId])
+  }
+
+  useEffect(() => { loadSynthesis() }, [knowledgeBaseId])
 
   async function handleGenerate() {
     if (generating) return
@@ -34,6 +38,20 @@ export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) 
 
   if (loading) {
     return <div className="mute py-8 text-center text-sm">Loading synthesis...</div>
+  }
+
+  if (error && !synthesis) {
+    return (
+      <div className="text-center py-8 fade-in">
+        <p className="text-[13px] dim mb-3">{error}</p>
+        <button
+          onClick={loadSynthesis}
+          className="px-3 py-1.5 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   const canGenerate = readyCount >= 2
