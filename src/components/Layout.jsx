@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { listKnowledgeBases } from '../services/knowledgeBases'
-import { listAllPodcasts } from '../services/podcasts'
+import { useData } from '../lib/DataContext'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
 import CommandPalette from './CommandPalette'
@@ -9,15 +8,9 @@ import CommandPalette from './CommandPalette'
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { knowledgeBases: kbs, podcasts, totalHours, refresh } = useData()
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [kbs, setKbs] = useState([])
-  const [podcasts, setPodcasts] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  useEffect(() => {
-    listKnowledgeBases().then(setKbs).catch(console.error)
-    listAllPodcasts().then(setPodcasts).catch(console.error)
-  }, [])
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -51,19 +44,7 @@ export default function Layout({ children }) {
     }
   }, [])
 
-  const refreshData = useCallback(() => {
-    listKnowledgeBases().then(setKbs).catch(console.error)
-    listAllPodcasts().then(setPodcasts).catch(console.error)
-  }, [])
-
-  useEffect(() => {
-    window.addEventListener('podbrain:data-changed', refreshData)
-    return () => window.removeEventListener('podbrain:data-changed', refreshData)
-  }, [refreshData])
-
   const currentKbId = location.pathname.startsWith('/kb/') ? location.pathname.split('/')[2] : null
-
-  const totalHours = podcasts.reduce((acc, p) => acc + (p.duration_seconds || 0), 0) / 3600
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">

@@ -4,10 +4,12 @@ import { getCategories, getTrendingShows } from '../services/podcastIndex'
 import SubscribeButton from '../components/SubscribeButton'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { addPodcastFromIndex } from '../services/podcasts'
+import { useData } from '../lib/DataContext'
 import * as Icons from '../components/Icons'
 
 export default function DiscoverPage() {
   const navigate = useNavigate()
+  const { refresh } = useData()
   const [categories, setCategories] = useState([])
   const [shows, setShows] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -75,7 +77,7 @@ export default function DiscoverPage() {
 
   async function handleAddFromIndex(episode) {
     const { podcast, alreadyProcessed } = await addPodcastFromIndex(null, episode)
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
     return { alreadyProcessed }
   }
 

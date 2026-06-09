@@ -4,6 +4,7 @@ import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBase
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import { getInsights } from '../services/processing'
 import { getSynthesis } from '../services/synthesis'
+import { useData } from '../lib/DataContext'
 import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
 import SynthesisPanel from '../components/SynthesisPanel'
@@ -17,6 +18,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export default function KnowledgeBase() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { refresh } = useData()
   const [kb, setKb] = useState(null)
   const [podcasts, setPodcasts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -80,7 +82,7 @@ export default function KnowledgeBase() {
   async function handleAddFromIndex(episode) {
     const { podcast, alreadyProcessed } = await addPodcastFromIndex(id, episode)
     setPodcasts((prev) => [podcast, ...prev])
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
     return { alreadyProcessed }
   }
 
@@ -88,7 +90,7 @@ export default function KnowledgeBase() {
     if (!confirm('Remove this podcast from the knowledge base?')) return
     await removePodcastFromKB(id, podcastId)
     setPodcasts((prev) => prev.filter((p) => p.id !== podcastId))
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
   }
 
   async function handleRename() {
@@ -99,7 +101,7 @@ export default function KnowledgeBase() {
     const updated = await updateKnowledgeBase(id, { name: editName.trim() })
     setKb(updated)
     setEditing(false)
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
   }
 
   if (loading) {

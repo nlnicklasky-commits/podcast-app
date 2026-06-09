@@ -2,10 +2,12 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { searchShows, getEpisodes, getAllEpisodes } from '../services/podcastIndex'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { formatDuration } from '../lib/utils'
+import { useData } from '../lib/DataContext'
 import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
 
 export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBaseId = null, initialShow = null }) {
+  const { refresh } = useData()
   const [step, setStep] = useState(initialShow ? 'episodes' : 'shows')
   const [query, setQuery] = useState('')
   const [shows, setShows] = useState([])
@@ -133,7 +135,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       )
 
       setBulkProgress({ current: result.added + result.skipped, total: toAdd.length, done: true, ...result })
-      window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+      refresh()
 
       setTimeout(() => onClose(), 1500)
     } catch (err) {
@@ -181,7 +183,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       )
 
       setBulkProgress({ current: result.added + result.skipped, total: withTranscript.length, done: true, ...result })
-      window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+      refresh()
       setTimeout(() => onClose(), 1500)
     } catch (err) {
       setError(err.message || 'Failed to add episodes')

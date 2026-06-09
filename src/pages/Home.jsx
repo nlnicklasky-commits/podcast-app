@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listKnowledgeBases, createKnowledgeBase, deleteKnowledgeBase } from '../services/knowledgeBases'
-import { listAllPodcasts, addPodcastFromIndex } from '../services/podcasts'
+import { createKnowledgeBase, deleteKnowledgeBase } from '../services/knowledgeBases'
+import { addPodcastFromIndex } from '../services/podcasts'
 import { getRecentProgress } from '../services/playback'
+import { useData } from '../lib/DataContext'
 import CreateKBModal from '../components/CreateKBModal'
 import AddPodcastModal from '../components/AddPodcastModal'
 import { formatDate, timeAgo } from '../lib/utils'
@@ -11,25 +12,13 @@ import * as Icons from '../components/Icons'
 
 export default function Home() {
   const navigate = useNavigate()
-  const [knowledgeBases, setKnowledgeBases] = useState([])
-  const [podcasts, setPodcasts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { knowledgeBases, podcasts, totalHours, loaded, refresh } = useData()
   const [showCreate, setShowCreate] = useState(false)
   const [showAddPodcast, setShowAddPodcast] = useState(false)
-  const [error, setError] = useState(null)
   const [progressMap, setProgressMap] = useState({})
 
-  async function load() {
-    try {
-      const [kbData, podcastData, progressData] = await Promise.all([
-        listKnowledgeBases(),
-        listAllPodcasts(),
-        getRecentProgress(),
-      ])
-      setKnowledgeBases(kbData)
-      setPodcasts(podcastData)
-
-      // Build a map of podcast_id -> progress percentage
+  useEffect(() => {
+    getRecentProgress().then((progressData) => {
       const map = {}
       for (const p of progressData) {
         if (p.duration_seconds && p.duration_seconds > 0) {
@@ -40,14 +29,8 @@ export default function Home() {
         }
       }
       setProgressMap(map)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
+    }).catch(console.error)
+  }, [])
 
   useEffect(() => {
     function onNewKB() { setShowCreate(true) }
@@ -61,45 +44,29 @@ export default function Home() {
   }, [])
 
   async function handleCreate(name, description) {
-    const kb = await createKnowledgeBase(name, description)
-    setKnowledgeBases((prev) => [kb, ...prev])
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    await createKnowledgeBase(name, description)
+    refresh()
   }
 
   async function handleDelete(id) {
     if (!confirm('Delete this knowledge base and all its podcasts?')) return
     await deleteKnowledgeBase(id)
-    setKnowledgeBases((prev) => prev.filter((kb) => kb.id !== id))
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
   }
 
   async function handleAddFromIndex(episode) {
     const { podcast, alreadyProcessed } = await addPodcastFromIndex(null, episode)
-    setPodcasts((prev) => [podcast, ...prev])
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
     return { alreadyProcessed }
   }
 
-  if (loading) {
+  if (!loaded) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="mute text-sm">Loading...</div>
       </div>
     )
   }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-[var(--error)] mb-2">Failed to load</p>
-          <p className="text-sm mute">{error}</p>
-        </div>
-      </div>
-    )
-  }
-
-  const totalHours = podcasts.reduce((acc, p) => acc + (p.duration_seconds || 0), 0) / 3600
   const processingPodcasts = podcasts.filter((p) =>
     ['downloading', 'transcribing', 'processing'].includes(p.status),
   )

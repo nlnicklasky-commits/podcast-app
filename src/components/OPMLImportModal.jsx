@@ -3,6 +3,7 @@ import { parseOPML, readFileAsText } from '../lib/opml'
 import { resolveFeeds, getEpisodes } from '../services/podcastIndex'
 import { subscribe } from '../services/subscriptions'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
+import { useData } from '../lib/DataContext'
 import * as Icons from './Icons'
 
 const RECENT_OPTIONS = [
@@ -13,6 +14,7 @@ const RECENT_OPTIONS = [
 ]
 
 export default function OPMLImportModal({ onClose }) {
+  const { refresh } = useData()
   const [step, setStep] = useState('upload')
   const [feeds, setFeeds] = useState([])
   const [resolved, setResolved] = useState([])
@@ -142,7 +144,7 @@ export default function OPMLImportModal({ onClose }) {
       episodesAdded,
     })
 
-    window.dispatchEvent(new CustomEvent('podbrain:data-changed'))
+    refresh()
     setImporting(false)
   }
 
