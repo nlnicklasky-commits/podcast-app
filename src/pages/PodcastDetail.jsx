@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
-import { getProgress, saveProgress } from '../services/playback'
 import { useAuth } from '../lib/useAuth'
 import { useToast } from '../lib/ToastContext'
+import { useAudio } from '../lib/AudioContext'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
@@ -16,9 +16,6 @@ import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
 import { PodcastDetailSkeleton } from '../components/Skeleton'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
-const SAVE_DEBOUNCE_MS = 10_000
-const COMPLETION_THRESHOLD = 0.9
 
 export default function PodcastDetail() {
   const { kbId, podcastId } = useParams()
@@ -37,132 +34,10 @@ export default function PodcastDetail() {
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
   const [showAudioConfirm, setShowAudioConfirm] = useState(false)
 
-  // Playback state
   const { user } = useAuth()
-  const audioRef = useRef(null)
-  const [savedProgress, setSavedProgress] = useState(null)
-  const [playbackSpeed, setPlaybackSpeed] = useState(1)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const lastSaveRef = useRef(0)
-  const saveTimerRef = useRef(null)
+  const { track: activeTrack, isPlaying, currentTime, speed, play: globalPlay, togglePlay, cycleSpeed } = useAudio()
+  const isCurrentTrack = activeTrack?.podcastId === podcastId
   const pollIntervalRef = useRef(null)
-  const completionSavedRef = useRef(false)
-
-  // Persist progress to Supabase (debounced)
-  const persistProgress = useCallback(
-    async (force = false) => {
-      const audio = audioRef.current
-      if (!audio || !user || !podcastId) return
-      const now = Date.now()
-      if (!force && now - lastSaveRef.current < SAVE_DEBOUNCE_MS) return
-      lastSaveRef.current = now
-
-      const position = audio.currentTime
-      const duration = audio.duration || null
-      const completed = duration ? position / duration >= COMPLETION_THRESHOLD : false
-
-      await saveProgress(podcastId, {
-        positionSeconds: position,
-        durationSeconds: duration,
-        playbackSpeed: audio.playbackRate,
-        completed,
-      })
-    },
-    [user, podcastId],
-  )
-
-  // Load saved progress on mount
-  useEffect(() => {
-    if (!user || !podcastId) return
-    let cancelled = false
-
-    async function loadProgress() {
-      const progress = await getProgress(podcastId)
-      if (!cancelled && progress) {
-        setSavedProgress(progress)
-        setPlaybackSpeed(progress.playback_speed || 1)
-      }
-    }
-    loadProgress()
-
-    return () => { cancelled = true }
-  }, [user, podcastId])
-
-  // Set audio position & speed once audio element is ready and progress is loaded
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio || !savedProgress) return
-
-    function onLoadedMetadata() {
-      if (savedProgress.position_seconds > 0 && !savedProgress.completed) {
-        audio.currentTime = savedProgress.position_seconds
-      }
-      audio.playbackRate = savedProgress.playback_speed || 1
-    }
-
-    // If already loaded (e.g. cached), apply immediately
-    if (audio.readyState >= 1) {
-      onLoadedMetadata()
-    } else {
-      audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true })
-    }
-
-    return () => audio.removeEventListener('loadedmetadata', onLoadedMetadata)
-  }, [savedProgress])
-
-  // Auto-save every 10s while playing
-  useEffect(() => {
-    if (!isPlaying) return
-
-    saveTimerRef.current = setInterval(() => {
-      persistProgress(true)
-    }, SAVE_DEBOUNCE_MS)
-
-    return () => clearInterval(saveTimerRef.current)
-  }, [isPlaying, persistProgress])
-
-  // Save on pause
-  function handlePause() {
-    setIsPlaying(false)
-    persistProgress(true)
-  }
-
-  function handlePlay() {
-    setIsPlaying(true)
-  }
-
-  // Save on page visibility change (tab switch / close)
-  useEffect(() => {
-    function onVisibilityChange() {
-      if (document.visibilityState === 'hidden') {
-        persistProgress(true)
-      }
-    }
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [persistProgress])
-
-  // Check completion on timeupdate — only persist once after crossing threshold
-  function handleTimeUpdate() {
-    const audio = audioRef.current
-    if (!audio || !audio.duration) return
-    if (audio.currentTime / audio.duration >= COMPLETION_THRESHOLD) {
-      if (!completionSavedRef.current) {
-        completionSavedRef.current = true
-        persistProgress(true)
-      }
-    }
-  }
-
-  // Speed selector
-  function cycleSpeed() {
-    const audio = audioRef.current
-    if (!audio) return
-    const idx = PLAYBACK_SPEEDS.indexOf(playbackSpeed)
-    const next = PLAYBACK_SPEEDS[(idx + 1) % PLAYBACK_SPEEDS.length]
-    setPlaybackSpeed(next)
-    audio.playbackRate = next
-  }
 
   useEffect(() => {
     async function load() {
@@ -449,39 +324,42 @@ export default function PodcastDetail() {
         {/* Audio Player */}
         {podcast.enclosure_url && (
           <div className="p-3 sm:p-4 mb-4 sm:mb-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]">
-            {/* Resume indicator */}
-            {user && savedProgress && savedProgress.position_seconds > 0 && !savedProgress.completed && (
-              <div className="flex items-center gap-2 mb-3 text-[12px] mono text-[var(--accent)]">
-                <Icons.Play size={10} />
-                Resume from {formatTimestamp(savedProgress.position_seconds)}
-              </div>
-            )}
-            {user && savedProgress?.completed && (
-              <div className="flex items-center gap-2 mb-3 text-[12px] mono text-[var(--success, var(--accent))]">
-                <Icons.Check size={10} />
-                Completed
-              </div>
-            )}
-
             <div className="flex items-center gap-3">
-              <audio
-                ref={audioRef}
-                src={podcast.enclosure_url}
-                className="flex-1 h-8"
-                controls
-                preload="metadata"
-                onPlay={handlePlay}
-                onPause={handlePause}
-                onTimeUpdate={handleTimeUpdate}
-              />
-              {user && (
-                <button
-                  onClick={cycleSpeed}
-                  className="shrink-0 px-2.5 py-1 text-[12px] mono font-semibold transition-colors bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--accent)]"
-                  title="Playback speed"
-                >
-                  {playbackSpeed}x
-                </button>
+              <button
+                onClick={() => {
+                  if (isCurrentTrack) {
+                    togglePlay()
+                  } else {
+                    globalPlay({
+                      podcastId,
+                      title: podcast.title,
+                      channel: podcast.channel,
+                      thumbnailUrl: podcast.thumbnail_url,
+                      enclosureUrl: podcast.enclosure_url,
+                    })
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium rounded-[var(--r-md)] transition-colors bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90"
+              >
+                {isCurrentTrack && isPlaying ? (
+                  <><Icons.Pause size={14} /> Pause</>
+                ) : (
+                  <><Icons.Play size={14} /> {isCurrentTrack ? 'Resume' : 'Play'}</>
+                )}
+              </button>
+              {isCurrentTrack && (
+                <>
+                  <span className="text-[12px] mono mute">
+                    {formatTimestamp(currentTime)}
+                  </span>
+                  <button
+                    onClick={cycleSpeed}
+                    className="shrink-0 px-2.5 py-1 text-[12px] mono font-semibold transition-colors bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+                    title="Playback speed"
+                  >
+                    {speed}x
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -508,7 +386,20 @@ export default function PodcastDetail() {
           )}
 
           {activeTab === 'transcript' && (
-            <TranscriptView transcript={transcript} highlightTime={timestampParam ? parseFloat(timestampParam) : null} audioRef={audioRef} />
+            <TranscriptView
+              transcript={transcript}
+              highlightTime={timestampParam ? parseFloat(timestampParam) : null}
+              onSeek={(time) => {
+                globalPlay({
+                  podcastId,
+                  title: podcast.title,
+                  channel: podcast.channel,
+                  thumbnailUrl: podcast.thumbnail_url,
+                  enclosureUrl: podcast.enclosure_url,
+                  startTime: time,
+                })
+              }}
+            />
           )}
 
           {activeTab === 'processing' && (
@@ -529,7 +420,7 @@ export default function PodcastDetail() {
   )
 }
 
-function TranscriptView({ transcript, highlightTime, audioRef }) {
+function TranscriptView({ transcript, highlightTime, onSeek }) {
   const [, setSearchParams] = useSearchParams()
   const highlightRef = useRef(null)
   const hasScrolled = useRef(false)
@@ -588,10 +479,7 @@ function TranscriptView({ transcript, highlightTime, audioRef }) {
               >
                 <button
                   onClick={() => {
-                    if (audioRef?.current) {
-                      audioRef.current.currentTime = seg.start
-                      audioRef.current.play()
-                    }
+                    onSeek?.(seg.start)
                     setSearchParams((prev) => { prev.set('t', String(Math.floor(seg.start))); return prev }, { replace: true })
                   }}
                   className="mono text-[11px] text-right pt-[3px] text-[var(--accent)] cursor-pointer bg-transparent border-none p-0 hover:underline"

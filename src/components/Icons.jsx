@@ -28,6 +28,8 @@ export const Chat = makeIcon(<><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8
 export const Headphones = makeIcon(<><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h3v6H4zM17 14h3v6h-3z" /></>)
 export const Play = makeIcon(<><path d="M7 5l12 7-12 7z" fill="currentColor" /></>)
 export const Pause = makeIcon(<><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor" stroke="none" /></>)
+export const SkipBack = makeIcon(<><path d="M19 20L9 12l10-8z" fill="currentColor" /><path d="M5 5v14" /></>)
+export const SkipForward = makeIcon(<><path d="M5 4l10 8-10 8z" fill="currentColor" /><path d="M19 5v14" /></>)
 export const Bookmark = makeIcon(<><path d="M6 4h12v17l-6-4-6 4z" /></>)
 export const Quote = makeIcon(<><path d="M5 10c0-2 1-4 4-4M5 10v4c0 2 2 2 2 2H5M14 10c0-2 1-4 4-4M14 10v4c0 2 2 2 2 2h-2" /></>)
 export const Hash = makeIcon(<><path d="M5 9h14M5 15h14M10 4l-2 16M16 4l-2 16" /></>)

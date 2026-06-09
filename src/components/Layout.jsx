@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useData } from '../lib/DataContext'
+import { useAudio } from '../lib/AudioContext'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
 import CommandPalette from './CommandPalette'
+import MiniPlayer from './MiniPlayer'
 
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { knowledgeBases: kbs, podcasts, totalHours, refresh } = useData()
+  const { track: activeTrack } = useAudio()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -206,10 +209,12 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className={`flex-1 overflow-hidden ${activeTrack ? 'pb-[60px]' : ''}`}>
           {children}
         </div>
       </main>
+
+      <MiniPlayer />
 
       <CommandPalette
         open={paletteOpen}

@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
 import { DataProvider } from './lib/DataContext'
+import { AudioProvider } from './lib/AudioContext'
 import { useAuth } from './lib/useAuth'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
@@ -55,6 +56,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
         <DataProvider>
+        <AudioProvider>
         <ErrorBoundary>
           <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[var(--bg)]"><div className="mute text-sm">Loading...</div></div>}>
             <Routes>
@@ -93,6 +95,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </ErrorBoundary>
+        </AudioProvider>
         </DataProvider>
         </ToastProvider>
       </AuthProvider>
