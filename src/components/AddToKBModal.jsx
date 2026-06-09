@@ -3,6 +3,7 @@ import { addPodcastToKB } from '../services/podcasts'
 import { useToast } from '../lib/ToastContext'
 import { useData } from '../lib/DataContext'
 import useFocusTrap from '../hooks/useFocusTrap'
+import useScrollLock from '../hooks/useScrollLock'
 import { KBGlyph } from './ui'
 import * as Icons from './Icons'
 
@@ -12,6 +13,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
   const [adding, setAdding] = useState(null)
   const [error, setError] = useState('')
   const trapRef = useFocusTrap()
+  useScrollLock()
 
   async function handleAdd(kb) {
     setAdding(kb.id)

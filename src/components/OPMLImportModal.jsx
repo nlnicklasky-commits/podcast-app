@@ -5,6 +5,7 @@ import { subscribe } from '../services/subscriptions'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { useData } from '../lib/DataContext'
 import useFocusTrap from '../hooks/useFocusTrap'
+import useScrollLock from '../hooks/useScrollLock'
 import * as Icons from './Icons'
 
 const RECENT_OPTIONS = [
@@ -28,6 +29,7 @@ export default function OPMLImportModal({ onClose }) {
   const [error, setError] = useState('')
   const fileRef = useRef(null)
   const trapRef = useFocusTrap()
+  useScrollLock()
 
   async function handleFile(e) {
     const file = e.target.files?.[0]

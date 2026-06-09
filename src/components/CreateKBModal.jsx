@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import useFocusTrap from '../hooks/useFocusTrap'
+import useScrollLock from '../hooks/useScrollLock'
 import * as Icons from './Icons'
 
 export default function CreateKBModal({ onClose, onCreate }) {
@@ -7,6 +8,7 @@ export default function CreateKBModal({ onClose, onCreate }) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const trapRef = useFocusTrap()
+  useScrollLock()
 
   async function handleSubmit(e) {
     e.preventDefault()

@@ -11,18 +11,25 @@ function parseFollowUps(content) {
   return { text, followUps }
 }
 
+let msgCounter = 0
+
 export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount = 0 }) {
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingConversations, setLoadingConversations] = useState(true)
   const [error, setError] = useState(null)
   const [followUps, setFollowUps] = useState([])
   const endRef = useRef(null)
 
   useEffect(() => {
-    listConversations(knowledgeBaseId).then(setConversations).catch(console.error)
+    setLoadingConversations(true)
+    listConversations(knowledgeBaseId)
+      .then(setConversations)
+      .catch(console.error)
+      .finally(() => setLoadingConversations(false))
   }, [knowledgeBaseId])
 
   useEffect(() => {
@@ -41,7 +48,8 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
     setInput('')
     setFollowUps([])
     setError(null)
-    setMessages((prev) => [...prev, { role: 'user', content: question, id: 'temp-user' }])
+    const tempId = `temp-${++msgCounter}`
+    setMessages((prev) => [...prev, { role: 'user', content: question, id: tempId }])
     setLoading(true)
 
     try {
@@ -56,13 +64,13 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
       const { text: parsedText, followUps: suggestions } = parseFollowUps(result.answer)
       setFollowUps(suggestions)
       setMessages((prev) => [
-        ...prev.filter((m) => m.id !== 'temp-user'),
-        { role: 'user', content: question },
-        { role: 'assistant', content: parsedText, sources: result.sources },
+        ...prev.filter((m) => m.id !== tempId),
+        { role: 'user', content: question, id: `user-${++msgCounter}` },
+        { role: 'assistant', content: parsedText, sources: result.sources, id: `asst-${++msgCounter}` },
       ])
     } catch (err) {
       setError(err.message)
-      setMessages((prev) => prev.filter((m) => m.id !== 'temp-user'))
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
     } finally {
       setLoading(false)
     }
@@ -99,7 +107,15 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-[18px] py-4">
-        {messages.length === 0 && !loading && (
+        {loadingConversations && messages.length === 0 && (
+          <div className="space-y-3 animate-pulse">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-10 bg-[var(--surface)] rounded-[var(--r-md)]" />
+            ))}
+          </div>
+        )}
+
+        {messages.length === 0 && !loading && !loadingConversations && (
           <div className="fade-in">
             <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-2.5">Try</div>
             <div className="flex flex-col gap-1.5">
@@ -117,8 +133,8 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
         )}
 
         <div className="flex flex-col gap-[18px]">
-          {messages.map((msg, i) => (
-            <MessageBubble key={i} msg={msg} />
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} msg={msg} />
           ))}
           {loading && <ThinkingDots />}
         </div>

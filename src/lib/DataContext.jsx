@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { listKnowledgeBases } from '../services/knowledgeBases'
 import { listAllPodcasts } from '../services/podcasts'
 
@@ -8,8 +8,9 @@ export function DataProvider({ children }) {
   const [knowledgeBases, setKnowledgeBases] = useState([])
   const [podcasts, setPodcasts] = useState([])
   const [loaded, setLoaded] = useState(false)
+  const debounceRef = useRef(null)
 
-  const refresh = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [kbData, podcastData] = await Promise.all([
         listKnowledgeBases(),
@@ -24,7 +25,13 @@ export function DataProvider({ children }) {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  const refresh = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(fetchData, 200)
+  }, [fetchData])
+
+  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => () => clearTimeout(debounceRef.current), [])
 
   const totalHours = podcasts.reduce((acc, p) => acc + (p.duration_seconds || 0), 0) / 3600
 

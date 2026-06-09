@@ -4,6 +4,7 @@ import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { formatDuration } from '../lib/utils'
 import { useData } from '../lib/DataContext'
 import useFocusTrap from '../hooks/useFocusTrap'
+import useScrollLock from '../hooks/useScrollLock'
 import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
 
@@ -20,6 +21,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
   const trapRef = useFocusTrap()
+  useScrollLock()
 
   // Cleanup search timeout on unmount (P1-4 fix)
   useEffect(() => () => clearTimeout(searchTimeout.current), [])
