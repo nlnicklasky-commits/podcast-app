@@ -165,6 +165,7 @@ export default function PodcastDetail() {
       setProcessing(false)
     } catch (err) {
       console.error('Cancel failed:', err)
+      addToast('Failed to cancel — try again', 'error')
     }
   }
 

@@ -32,7 +32,7 @@ export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const inputRef = useRef(null)
   const { knowledgeBases, refresh } = useData()
-  const toast = useToast()
+  const { addToast } = useToast()
 
   const initialQuery = searchParams.get('q') || ''
   const initialTab = searchParams.get('tab') || 'transcripts'
@@ -318,9 +318,9 @@ export default function SearchPage() {
     try {
       const { alreadyProcessed } = await addPodcastFromIndex(null, enriched)
       refresh()
-      toast.success(alreadyProcessed ? 'Episode already in library' : 'Episode added to library')
+      addToast(alreadyProcessed ? 'Episode already in library' : 'Episode added to library', 'success')
     } catch (err) {
-      toast.error(err.message || 'Failed to add episode')
+      addToast(err.message || 'Failed to add episode', 'error')
     }
   }
 

@@ -101,8 +101,14 @@ export default function DiscoverPage() {
         </div>
 
         {error && (
-          <div className="mb-4 px-3.5 py-2.5 text-[13px] bg-[color-mix(in_oklab,var(--error),transparent_85%)] text-[var(--error)] border border-[color-mix(in_oklab,var(--error),transparent_70%)] rounded-[var(--r-md)]">
-            {error}
+          <div className="mb-4 flex items-center gap-3 px-3.5 py-2.5 text-[13px] bg-[color-mix(in_oklab,var(--error),transparent_85%)] text-[var(--error)] border border-[color-mix(in_oklab,var(--error),transparent_70%)] rounded-[var(--r-md)]">
+            <span className="flex-1">{error}</span>
+            <button
+              onClick={selectedCategory ? () => handleSelectCategory(selectedCategory) : loadInitial}
+              className="shrink-0 px-3 py-1 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:border-[var(--accent)] transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 
