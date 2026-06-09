@@ -14,7 +14,7 @@ import * as Icons from '../components/Icons'
 
 export default function Home() {
   const navigate = useNavigate()
-  const { knowledgeBases, podcasts, totalHours, loaded, refresh } = useData()
+  const { knowledgeBases, podcasts, totalHours, loaded, loadError, refresh } = useData()
   const [showCreate, setShowCreate] = useState(false)
   const [showAddPodcast, setShowAddPodcast] = useState(false)
   const [progressMap, setProgressMap] = useState({})
@@ -93,6 +93,18 @@ export default function Home() {
             {podcasts.length === 0 && ' — add your first podcast to get started.'}
           </h1>
         </div>
+
+        {loadError && (
+          <div className="mb-6 flex items-center gap-3 px-4 py-3 text-[13px] bg-[color-mix(in_oklab,var(--error),transparent_90%)] border border-[color-mix(in_oklab,var(--error),transparent_60%)] rounded-[var(--r-md)]">
+            <span className="text-[var(--error)] flex-1">{loadError}</span>
+            <button
+              onClick={refresh}
+              className="shrink-0 px-3 py-1 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* KB grid */}
         <SectionHeader

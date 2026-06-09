@@ -8,10 +8,12 @@ export function DataProvider({ children }) {
   const [knowledgeBases, setKnowledgeBases] = useState([])
   const [podcasts, setPodcasts] = useState([])
   const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(null)
   const debounceRef = useRef(null)
 
   const fetchData = useCallback(async () => {
     try {
+      setLoadError(null)
       const [kbData, podcastData] = await Promise.all([
         listKnowledgeBases(),
         listAllPodcasts(),
@@ -20,6 +22,7 @@ export function DataProvider({ children }) {
       setPodcasts(podcastData)
     } catch (err) {
       console.error('DataContext refresh failed:', err)
+      setLoadError(err.message || 'Failed to load data')
     } finally {
       setLoaded(true)
     }
@@ -36,7 +39,7 @@ export function DataProvider({ children }) {
   const totalHours = podcasts.reduce((acc, p) => acc + (p.duration_seconds || 0), 0) / 3600
 
   return (
-    <DataContext.Provider value={{ knowledgeBases, podcasts, totalHours, loaded, refresh }}>
+    <DataContext.Provider value={{ knowledgeBases, podcasts, totalHours, loaded, loadError, refresh }}>
       {children}
     </DataContext.Provider>
   )

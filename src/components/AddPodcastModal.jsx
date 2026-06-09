@@ -118,7 +118,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       }
       const toAdd = count ? sorted.slice(0, count) : sorted
       if (toAdd.length === 0) {
-        setError('No episodes with transcripts found')
+        setError(transcriptOnly ? 'No episodes with transcripts found' : 'No episodes found for this podcast')
         setBulkAdding(false)
         return
       }

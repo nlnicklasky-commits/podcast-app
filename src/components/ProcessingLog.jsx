@@ -19,12 +19,18 @@ export default function ProcessingLog({ podcastId, status }) {
   useEffect(() => {
     if (!podcastId) return
 
-    getProcessingLogs(podcastId).then(setLogs)
+    let consecutiveErrors = 0
+    getProcessingLogs(podcastId).then(setLogs).catch(() => {})
 
     if (!isActive) return
 
     const poll = setInterval(() => {
-      getProcessingLogs(podcastId).then(setLogs)
+      getProcessingLogs(podcastId)
+        .then((data) => { setLogs(data); consecutiveErrors = 0 })
+        .catch(() => {
+          consecutiveErrors++
+          if (consecutiveErrors >= 5) clearInterval(poll)
+        })
     }, 3000)
     return () => clearInterval(poll)
   }, [podcastId, isActive])

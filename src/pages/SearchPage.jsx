@@ -382,6 +382,7 @@ export default function SearchPage() {
                   setShowsSearched(false)
                   setSelectedShow(null)
                   setEpisodes([])
+                  setError(null)
                 }}
                 className="mute shrink-0"
               >
