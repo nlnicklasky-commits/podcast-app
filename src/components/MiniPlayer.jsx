@@ -23,8 +23,8 @@ export default function MiniPlayer() {
 
   function handleSeek(e) {
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const pct = Math.max(0, Math.min(1, x / rect.width))
+    const clientX = e.touches?.[0]?.clientX ?? e.clientX
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
     seek(pct * duration)
   }
 
@@ -38,6 +38,7 @@ export default function MiniPlayer() {
       <div
         className="h-1 bg-[var(--border-soft)] cursor-pointer group"
         onClick={handleSeek}
+        onTouchStart={handleSeek}
       >
         <div
           className="h-full bg-[var(--accent)] transition-[width] duration-150"

@@ -5,6 +5,7 @@ import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../servi
 import { getInsights } from '../services/processing'
 import { getSynthesis } from '../services/synthesis'
 import { useData } from '../lib/DataContext'
+import { useToast } from '../lib/ToastContext'
 import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
 import SynthesisPanel from '../components/SynthesisPanel'
@@ -21,6 +22,7 @@ export default function KnowledgeBase() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { refresh } = useData()
+  const { addToast } = useToast()
   const [kb, setKb] = useState(null)
   const [podcasts, setPodcasts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -45,8 +47,10 @@ export default function KnowledgeBase() {
       const md = fullKBToMarkdown(kb.name, podcastInsights, synthesis)
       const filename = `${slugify(kb.name)}-full-export.md`
       downloadMarkdown(md, filename)
+      addToast('Exported to markdown', 'success')
     } catch (err) {
       console.error('Export failed:', err)
+      addToast('Export failed — try again', 'error')
     } finally {
       setExporting(false)
     }
@@ -90,9 +94,13 @@ export default function KnowledgeBase() {
 
   async function handleDeletePodcast(podcastId) {
     if (!confirm('Remove this podcast from the knowledge base?')) return
-    await removePodcastFromKB(id, podcastId)
-    setPodcasts((prev) => prev.filter((p) => p.id !== podcastId))
-    refresh()
+    try {
+      await removePodcastFromKB(id, podcastId)
+      setPodcasts((prev) => prev.filter((p) => p.id !== podcastId))
+      refresh()
+    } catch (err) {
+      addToast('Failed to remove podcast', 'error')
+    }
   }
 
   async function handleRename() {
@@ -100,10 +108,14 @@ export default function KnowledgeBase() {
       setEditing(false)
       return
     }
-    const updated = await updateKnowledgeBase(id, { name: editName.trim() })
-    setKb(updated)
-    setEditing(false)
-    refresh()
+    try {
+      const updated = await updateKnowledgeBase(id, { name: editName.trim() })
+      setKb(updated)
+      setEditing(false)
+      refresh()
+    } catch (err) {
+      addToast('Failed to rename knowledge base', 'error')
+    }
   }
 
   if (loading) {
