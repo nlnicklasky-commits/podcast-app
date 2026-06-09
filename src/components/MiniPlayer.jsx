@@ -28,7 +28,6 @@ export default function MiniPlayer() {
   }
 
   function handleSkip(delta) {
-    const audio = seek
     seek(Math.max(0, Math.min(duration, currentTime + delta)))
   }
 

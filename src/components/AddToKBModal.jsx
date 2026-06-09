@@ -1,30 +1,15 @@
-import { useState, useEffect } from 'react'
-import { listKnowledgeBases } from '../services/knowledgeBases'
+import { useState } from 'react'
 import { addPodcastToKB } from '../services/podcasts'
 import { useToast } from '../lib/ToastContext'
+import { useData } from '../lib/DataContext'
 import { KBGlyph } from './ui'
 import * as Icons from './Icons'
 
 export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, onAdded }) {
   const { addToast } = useToast()
-  const [knowledgeBases, setKnowledgeBases] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { knowledgeBases, loaded } = useData()
   const [adding, setAdding] = useState(null)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const kbs = await listKnowledgeBases()
-        setKnowledgeBases(kbs)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
 
   async function handleAdd(kb) {
     setAdding(kb.id)
@@ -63,7 +48,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
         </div>
 
         <div className="p-[18px]">
-          {loading ? (
+          {!loaded ? (
             <div className="py-8 text-center mute text-[13px]">Loading knowledge bases...</div>
           ) : availableKBs.length === 0 ? (
             <div className="py-8 text-center">

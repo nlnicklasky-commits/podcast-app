@@ -20,7 +20,7 @@ function fireProcessing(podcastId) {
 export async function listAllPodcasts() {
   const { data, error } = await supabase
     .from('podcasts')
-    .select('id, title, channel, status, progress, duration_seconds, thumbnail_url, transcript_url, created_at')
+    .select('id, title, channel, status, progress, duration_seconds, thumbnail_url, transcript_url, enclosure_url, created_at')
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(`Failed to load podcasts: ${error.message}`)

@@ -11,7 +11,7 @@ export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { knowledgeBases: kbs, podcasts, totalHours, refresh } = useData()
-  const { track: activeTrack } = useAudio()
+  const { track: activeTrack, togglePlay, seek, currentTime, duration } = useAudio()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -20,23 +20,38 @@ export default function Layout({ children }) {
   }, [location.pathname])
 
   useEffect(() => {
+    function isTyping() {
+      const tag = document.activeElement?.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable
+    }
+
     function onKey(e) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPaletteOpen((v) => !v)
       } else if (e.key === 'Escape' && paletteOpen) {
         setPaletteOpen(false)
-      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
-        const tag = document.activeElement?.tagName
-        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !document.activeElement?.isContentEditable) {
-          e.preventDefault()
-          navigate('/search')
-        }
+      } else if (e.key === '/' && !e.metaKey && !e.ctrlKey && !isTyping()) {
+        e.preventDefault()
+        navigate('/search')
+      } else if (e.key === ' ' && !isTyping() && activeTrack) {
+        e.preventDefault()
+        togglePlay()
+      } else if (e.key === 'ArrowLeft' && !isTyping() && activeTrack) {
+        e.preventDefault()
+        seek(Math.max(0, currentTime - 5))
+      } else if (e.key === 'ArrowRight' && !isTyping() && activeTrack) {
+        e.preventDefault()
+        seek(Math.min(duration, currentTime + 5))
+      } else if ((e.key === 'j' || e.key === 'J') && !isTyping() && activeTrack) {
+        seek(Math.max(0, currentTime - 15))
+      } else if ((e.key === 'l' || e.key === 'L') && !isTyping() && activeTrack) {
+        seek(Math.min(duration, currentTime + 30))
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paletteOpen, navigate])
+  }, [paletteOpen, navigate, activeTrack, togglePlay, seek, currentTime, duration])
 
   const handlePaletteClose = useCallback((action) => {
     setPaletteOpen(false)

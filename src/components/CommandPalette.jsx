@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { semanticSearch } from '../services/search'
+import { useAudio } from '../lib/AudioContext'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
 import { formatTimestamp } from '../lib/utils'
@@ -12,6 +13,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef(null)
   const navigate = useNavigate()
+  const { play } = useAudio()
   const isSearchMode = query.startsWith('?') && query.length > 1
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
         hint: p.channel || '',
         path: `/podcast/${p.id}`,
         glyph: <Icons.Headphones size={14} />,
+        podcast: p,
       })),
       {
         kind: 'action',
@@ -210,22 +213,45 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
           ) : (
             <>
               {items.map((it, i) => (
-                <button
+                <div
                   key={`${it.kind}-${it.label}-${i}`}
-                  onClick={() => handleSelect(it)}
-                  className={`w-full flex items-center gap-3 px-[18px] py-2.5 text-left transition-colors border-l-2 hover:bg-[var(--surface)] ${
+                  className={`flex items-center border-l-2 hover:bg-[var(--surface)] transition-colors ${
                     i === activeIndex
                       ? 'bg-[var(--surface)] border-l-[var(--accent)]'
                       : 'bg-transparent border-l-transparent'
                   }`}
                 >
-                  <span className="mute">{it.glyph}</span>
-                  <span className="flex-1 min-w-0 text-[13.5px] truncate text-[var(--text)]">
-                    {it.label}
-                  </span>
-                  <span className="text-[11px] mono mute">{it.hint}</span>
-                  <span className="text-[10px] mono mute uppercase tracking-[0.08em]">{it.kind}</span>
-                </button>
+                  <button
+                    onClick={() => handleSelect(it)}
+                    className="flex-1 flex items-center gap-3 px-[18px] py-2.5 text-left min-w-0"
+                  >
+                    <span className="mute">{it.glyph}</span>
+                    <span className="flex-1 min-w-0 text-[13.5px] truncate text-[var(--text)]">
+                      {it.label}
+                    </span>
+                    <span className="text-[11px] mono mute">{it.hint}</span>
+                    <span className="text-[10px] mono mute uppercase tracking-[0.08em]">{it.kind}</span>
+                  </button>
+                  {it.podcast?.enclosure_url && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        play({
+                          podcastId: it.podcast.id,
+                          title: it.podcast.title,
+                          channel: it.podcast.channel,
+                          thumbnailUrl: it.podcast.thumbnail_url,
+                          enclosureUrl: it.podcast.enclosure_url,
+                        })
+                        onClose(null)
+                      }}
+                      className="shrink-0 p-2 mr-2 mute hover:text-[var(--accent)] transition-colors rounded-[var(--r-sm)] hover:bg-[var(--bg)]"
+                      title="Play"
+                    >
+                      <Icons.Play size={12} />
+                    </button>
+                  )}
+                </div>
               ))}
               {items.length === 0 && (
                 <div className="p-10 text-center text-[13px] mute">No matches.</div>
