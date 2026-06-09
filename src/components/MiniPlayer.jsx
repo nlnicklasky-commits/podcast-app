@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAudio } from '../lib/AudioContext'
+import PodcastImage from './PodcastImage'
 import * as Icons from './Icons'
 
 function formatTime(seconds) {
@@ -45,25 +46,11 @@ export default function MiniPlayer() {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 max-w-[1280px] mx-auto">
-        {/* Thumbnail — click to navigate */}
-        <button
+        <PodcastImage
+          src={track.thumbnailUrl}
+          size={40}
           onClick={() => navigate(`/podcast/${track.podcastId}`)}
-          className="shrink-0"
-          title="Go to episode"
-        >
-          {track.thumbnailUrl ? (
-            <img
-              src={track.thumbnailUrl}
-              alt=""
-              className="w-10 h-10 rounded-[var(--r-sm)] object-cover"
-              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-[var(--r-sm)] bg-[var(--surface)] grid place-items-center mute">
-              <Icons.Headphones size={16} />
-            </div>
-          )}
-        </button>
+        />
 
         {/* Title / channel — click to navigate */}
         <button

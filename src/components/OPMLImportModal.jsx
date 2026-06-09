@@ -4,6 +4,7 @@ import { resolveFeeds, getEpisodes } from '../services/podcastIndex'
 import { subscribe } from '../services/subscriptions'
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { useData } from '../lib/DataContext'
+import useFocusTrap from '../hooks/useFocusTrap'
 import * as Icons from './Icons'
 
 const RECENT_OPTIONS = [
@@ -26,6 +27,7 @@ export default function OPMLImportModal({ onClose }) {
   const [progress, setProgress] = useState(null)
   const [error, setError] = useState('')
   const fileRef = useRef(null)
+  const trapRef = useFocusTrap()
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -154,6 +156,9 @@ export default function OPMLImportModal({ onClose }) {
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={e => e.stopPropagation()}
         className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[12px_12px_var(--r-lg)_var(--r-lg)]"
       >

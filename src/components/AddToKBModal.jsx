@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { addPodcastToKB } from '../services/podcasts'
 import { useToast } from '../lib/ToastContext'
 import { useData } from '../lib/DataContext'
+import useFocusTrap from '../hooks/useFocusTrap'
 import { KBGlyph } from './ui'
 import * as Icons from './Icons'
 
@@ -10,6 +11,7 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
   const { knowledgeBases, loaded } = useData()
   const [adding, setAdding] = useState(null)
   const [error, setError] = useState('')
+  const trapRef = useFocusTrap()
 
   async function handleAdd(kb) {
     setAdding(kb.id)
@@ -35,6 +37,9 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)]"
       >

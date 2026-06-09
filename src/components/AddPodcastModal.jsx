@@ -3,6 +3,7 @@ import { searchShows, getEpisodes, getAllEpisodes } from '../services/podcastInd
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { formatDuration } from '../lib/utils'
 import { useData } from '../lib/DataContext'
+import useFocusTrap from '../hooks/useFocusTrap'
 import SubscribeButton from './SubscribeButton'
 import * as Icons from './Icons'
 
@@ -18,6 +19,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const searchTimeout = useRef(null)
+  const trapRef = useFocusTrap()
 
   // Cleanup search timeout on unmount (P1-4 fix)
   useEffect(() => () => clearTimeout(searchTimeout.current), [])
@@ -230,6 +232,9 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[12px_12px_var(--r-lg)_var(--r-lg)]"
       >

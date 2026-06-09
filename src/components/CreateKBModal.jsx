@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import useFocusTrap from '../hooks/useFocusTrap'
 import * as Icons from './Icons'
 
 export default function CreateKBModal({ onClose, onCreate }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const trapRef = useFocusTrap()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -25,6 +27,9 @@ export default function CreateKBModal({ onClose, onCreate }) {
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)]"
       >

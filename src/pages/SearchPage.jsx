@@ -7,6 +7,7 @@ import { useData } from '../lib/DataContext'
 import { useToast } from '../lib/ToastContext'
 import SemanticSearchResult from '../components/SemanticSearchResult'
 import SubscribeButton from '../components/SubscribeButton'
+import PodcastImage from '../components/PodcastImage'
 import { formatDuration } from '../lib/utils'
 import * as Icons from '../components/Icons'
 
@@ -604,14 +605,7 @@ export default function SearchPage() {
                   >
                     <Icons.Back size={16} />
                   </button>
-                  {selectedShow.artwork && (
-                    <img
-                      src={selectedShow.artwork}
-                      alt=""
-                      className="w-10 h-10 rounded object-cover shrink-0"
-                      onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-                    />
-                  )}
+                  <PodcastImage src={selectedShow.artwork} size={40} className="rounded" />
                   <div className="min-w-0 flex-1">
                     <h2 className="text-[15px] font-medium truncate m-0">
                       {decodeHtml(selectedShow.title)}
@@ -670,22 +664,7 @@ export default function SearchPage() {
                         key={show.id}
                         className="flex gap-3 p-3 rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]"
                       >
-                        {show.artwork ? (
-                          <img
-                            src={show.artwork}
-                            alt=""
-                            className="w-12 h-12 object-cover shrink-0 rounded-[var(--r-sm)] cursor-pointer"
-                            onClick={() => handleSelectShow(show)}
-                            onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-                          />
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-[var(--r-sm)] bg-[var(--surface)] grid place-items-center shrink-0 mute border border-[var(--border)] cursor-pointer"
-                            onClick={() => handleSelectShow(show)}
-                          >
-                            <Icons.Headphones size={18} />
-                          </div>
-                        )}
+                        <PodcastImage src={show.artwork} size={48} onClick={() => handleSelectShow(show)} />
                         <button
                           onClick={() => handleSelectShow(show)}
                           className="flex-1 min-w-0 text-left bg-transparent border-none p-0"

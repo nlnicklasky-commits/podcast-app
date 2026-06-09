@@ -9,6 +9,7 @@ import AddPodcastModal from '../components/AddPodcastModal'
 import { formatDate, timeAgo } from '../lib/utils'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
 import { HomeSkeleton } from '../components/Skeleton'
+import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 
 export default function Home() {
@@ -161,20 +162,7 @@ export default function Home() {
                     onClick={() => navigate(`/podcast/${p.id}`)}
                     className={`relative flex items-center gap-3 sm:gap-3.5 px-3 sm:px-[18px] py-3 sm:py-3.5 w-full text-left transition-colors min-h-[44px] hover:bg-[var(--surface-2)] ${i === recentPodcasts.length - 1 ? '' : 'border-b border-[var(--border-soft)]'}`}
                   >
-                    {p.thumbnail_url ? (
-                      <img
-                        src={p.thumbnail_url}
-                        alt=""
-                        className="w-10 h-10 object-cover shrink-0 rounded-[var(--r-sm)]"
-                        onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-                      />
-                    ) : (
-                      <div
-                        className="w-10 h-10 shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
-                      >
-                        <Icons.Headphones size={16} />
-                      </div>
-                    )}
+                    <PodcastImage src={p.thumbnail_url} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] truncate text-[var(--text)]">
                         {p.title || 'Untitled'}

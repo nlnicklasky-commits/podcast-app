@@ -11,6 +11,7 @@ import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
 import ProcessingLog from '../components/ProcessingLog'
 import { StatusPip, Tag } from '../components/ui'
+import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
 import { PodcastDetailSkeleton } from '../components/Skeleton'
@@ -184,20 +185,7 @@ export default function PodcastDetail() {
 
         {/* Header */}
         <div className="flex gap-[18px] mb-[22px]">
-          {podcast.thumbnail_url ? (
-            <img
-              src={podcast.thumbnail_url}
-              alt=""
-              className="w-[88px] h-[88px] object-cover shrink-0 rounded-[var(--r-lg)]"
-              onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-            />
-          ) : (
-            <div
-              className="w-[88px] h-[88px] shrink-0 grid place-items-center mute bg-[var(--surface)] rounded-[var(--r-lg)]"
-            >
-              <Icons.Headphones size={32} />
-            </div>
-          )}
+          <PodcastImage src={podcast.thumbnail_url} size={88} className="rounded-[var(--r-lg)]" />
           <div className="flex-1 min-w-0">
             <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-1">
               {podcast.channel || 'Unknown'} · {formatDate(podcast.created_at)}

@@ -9,6 +9,7 @@ import AddPodcastModal from '../components/AddPodcastModal'
 import ChatPanel from '../components/ChatPanel'
 import SynthesisPanel from '../components/SynthesisPanel'
 import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
+import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
 import { fullKBToMarkdown, downloadMarkdown, slugify } from '../lib/export'
@@ -299,20 +300,7 @@ function PodcastRow({ podcast: p, onClick, onDelete }) {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       className="flex gap-3 p-3 text-left items-center transition-colors group cursor-pointer min-h-[44px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
     >
-      {p.thumbnail_url ? (
-        <img
-          src={p.thumbnail_url}
-          alt=""
-          className="w-10 h-10 sm:w-[52px] sm:h-[52px] object-cover shrink-0 rounded-[var(--r-sm)]"
-          onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
-        />
-      ) : (
-        <div
-          className="w-10 h-10 sm:w-[52px] sm:h-[52px] shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)]"
-        >
-          <Icons.Headphones size={20} />
-        </div>
-      )}
+      <PodcastImage src={p.thumbnail_url} size={52} className="w-10 h-10 sm:w-[52px] sm:h-[52px]" />
       <div className="flex-1 min-w-0">
         <div className="serif text-[14px] sm:text-[16px] tracking-tight truncate">{p.title || 'Untitled'}</div>
         <div className="text-[12px] dim mt-0.5">{p.channel || 'Unknown'}</div>

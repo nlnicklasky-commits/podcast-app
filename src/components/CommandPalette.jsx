@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { semanticSearch } from '../services/search'
 import { useAudio } from '../lib/AudioContext'
+import useFocusTrap from '../hooks/useFocusTrap'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
 import { formatTimestamp } from '../lib/utils'
@@ -14,6 +15,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
   const inputRef = useRef(null)
   const navigate = useNavigate()
   const { play } = useAudio()
+  const trapRef = useFocusTrap(open)
   const isSearchMode = query.startsWith('?') && query.length > 1
 
   useEffect(() => {
@@ -105,6 +107,9 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
       className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/50 backdrop-blur-[4px]"
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className="w-[600px] max-w-[92vw] overflow-hidden fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
       >

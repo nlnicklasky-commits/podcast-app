@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { useAuth } from './useAuth'
+import { useToast } from './ToastContext'
 import { getProgress, saveProgress } from '../services/playback'
 
 const PLAYBACK_SPEEDS = [1, 1.25, 1.5, 2]
@@ -10,6 +11,7 @@ const AudioContext = createContext(null)
 
 export function AudioProvider({ children }) {
   const { user } = useAuth()
+  const { addToast } = useToast()
   const audioRef = useRef(null)
   const lastSaveRef = useRef(0)
   const saveTimerRef = useRef(null)
@@ -20,6 +22,7 @@ export function AudioProvider({ children }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [speed, setSpeed] = useState(1)
+  const [error, setError] = useState(null)
 
   const persistProgress = useCallback(
     async (force = false) => {
@@ -74,6 +77,7 @@ export function AudioProvider({ children }) {
 
       completionSavedRef.current = false
       lastSaveRef.current = 0
+      setError(null)
       setTrack({ podcastId, title, channel, thumbnailUrl, enclosureUrl })
       setCurrentTime(0)
       setDuration(0)
@@ -185,6 +189,15 @@ export function AudioProvider({ children }) {
     persistProgress(true)
   }
 
+  function handleError() {
+    const audio = audioRef.current
+    if (!audio?.src || audio.src === window.location.href) return
+    const msg = 'Unable to play — audio URL may be unavailable'
+    setError(msg)
+    setIsPlaying(false)
+    addToast(msg, 'error')
+  }
+
   return (
     <AudioContext.Provider
       value={{
@@ -193,6 +206,7 @@ export function AudioProvider({ children }) {
         currentTime,
         duration,
         speed,
+        error,
         audioRef,
         play,
         pause,
@@ -211,6 +225,7 @@ export function AudioProvider({ children }) {
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onError={handleError}
         style={{ display: 'none' }}
       />
     </AudioContext.Provider>
