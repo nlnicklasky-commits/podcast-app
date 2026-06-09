@@ -54,7 +54,7 @@ export default function CreateKBModal({ onClose, onCreate }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., AI Startups"
-              className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text)]"
+              className="w-full px-3 py-2 text-[13.5px] outline-none transition-colors bg-[var(--surface)] border border-[var(--border)] focus:border-[var(--accent)] rounded-[var(--r-md)] text-[var(--text)]"
               autoFocus
             />
           </div>
@@ -67,7 +67,7 @@ export default function CreateKBModal({ onClose, onCreate }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What topics does this cover?"
               rows={3}
-              className="w-full px-3 py-2 text-[13.5px] outline-none resize-none transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text)]"
+              className="w-full px-3 py-2 text-[13.5px] outline-none resize-none transition-colors bg-[var(--surface)] border border-[var(--border)] focus:border-[var(--accent)] rounded-[var(--r-md)] text-[var(--text)]"
             />
           </div>
           {error && (

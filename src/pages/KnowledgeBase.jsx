@@ -156,7 +156,7 @@ export default function KnowledgeBase() {
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="serif text-2xl sm:text-[32px] font-medium tracking-tight w-full bg-transparent outline-none border border-[var(--border)] rounded-[var(--r-sm)] px-2 py-[2px] text-[var(--text)]"
+                    className="serif text-2xl sm:text-[32px] font-medium tracking-tight w-full bg-transparent outline-none border border-[var(--border)] focus:border-[var(--accent)] rounded-[var(--r-sm)] px-2 py-[2px] text-[var(--text)]"
                     autoFocus
                     onBlur={handleRename}
                   />

@@ -185,7 +185,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
       <div className="p-3.5 border-t border-[var(--border)]">
         <form
           onSubmit={(e) => { e.preventDefault(); send(input) }}
-          className="flex items-end gap-2 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] px-2.5 py-2"
+          className="flex items-end gap-2 bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--accent)] rounded-[var(--r-md)] px-2.5 py-2 transition-colors"
         >
           <textarea
             value={input}

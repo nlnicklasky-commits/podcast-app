@@ -266,7 +266,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
               <>
                 <div className="shrink-0 mb-3">
                   <div
-                    className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)]"
+                    className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--accent)] rounded-[var(--r-md)] transition-colors"
                   >
                     <Icons.Search size={14} className="mute shrink-0" />
                     <input
