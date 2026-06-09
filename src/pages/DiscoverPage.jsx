@@ -19,6 +19,8 @@ export default function DiscoverPage() {
   const [error, setError] = useState(null)
   const [browseShow, setBrowseShow] = useState(null)
 
+  useEffect(() => { document.title = 'Discover — PodBrain' }, [])
+
   useEffect(() => {
     loadInitial()
   }, [])

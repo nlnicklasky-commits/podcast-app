@@ -32,6 +32,8 @@ export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const inputRef = useRef(null)
   const { knowledgeBases, refresh } = useData()
+
+  useEffect(() => { document.title = 'Search — PodBrain' }, [])
   const { addToast } = useToast()
 
   const initialQuery = searchParams.get('q') || ''

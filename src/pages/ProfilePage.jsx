@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const [subsLoading, setSubsLoading] = useState(true)
   const [showOPML, setShowOPML] = useState(false)
 
+  useEffect(() => { document.title = 'Profile — PodBrain' }, [])
+
   useEffect(() => {
     listSubscriptions()
       .then(setSubscriptions)

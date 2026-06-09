@@ -17,6 +17,8 @@ export default function Home() {
   const { knowledgeBases, podcasts, totalHours, loaded, loadError, refresh } = useData()
   const [showCreate, setShowCreate] = useState(false)
   const [showAddPodcast, setShowAddPodcast] = useState(false)
+
+  useEffect(() => { document.title = 'Library — PodBrain' }, [])
   const [progressMap, setProgressMap] = useState({})
 
   useEffect(() => {

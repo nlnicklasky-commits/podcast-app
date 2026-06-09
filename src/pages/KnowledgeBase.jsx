@@ -80,6 +80,10 @@ export default function KnowledgeBase() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    document.title = kb ? `${kb.name} — PodBrain` : 'PodBrain'
+  }, [kb?.name])
+
+  useEffect(() => {
     function onAddPodcast() { setShowAdd(true) }
     window.addEventListener('podbrain:add-podcast', onAddPodcast)
     return () => window.removeEventListener('podbrain:add-podcast', onAddPodcast)

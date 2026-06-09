@@ -41,6 +41,10 @@ export default function PodcastDetail() {
   const pollIntervalRef = useRef(null)
 
   useEffect(() => {
+    document.title = podcast ? `${podcast.title || 'Podcast'} — PodBrain` : 'PodBrain'
+  }, [podcast?.title])
+
+  useEffect(() => {
     async function load() {
       if (!UUID_RE.test(podcastId) || (kbId && !UUID_RE.test(kbId))) {
         setLoading(false)
