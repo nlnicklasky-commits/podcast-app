@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { listKnowledgeBases } from '../services/knowledgeBases'
 import { semanticSearch, getSearchHistory, deleteSearchHistoryEntry, clearSearchHistory } from '../services/search'
 import { searchShows, getEpisodes } from '../services/podcastIndex'
+import { addPodcastFromIndex } from '../services/podcasts'
+import { useData } from '../lib/DataContext'
+import { useToast } from '../lib/ToastContext'
 import SemanticSearchResult from '../components/SemanticSearchResult'
+import SubscribeButton from '../components/SubscribeButton'
 import { formatDuration } from '../lib/utils'
 import * as Icons from '../components/Icons'
 
@@ -27,6 +30,8 @@ export default function SearchPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const inputRef = useRef(null)
+  const { knowledgeBases, refresh } = useData()
+  const toast = useToast()
 
   const initialQuery = searchParams.get('q') || ''
   const initialTab = searchParams.get('tab') || 'transcripts'
@@ -49,7 +54,6 @@ export default function SearchPage() {
   const [scopeId, setScopeId] = useState(null)
   const [threshold, setThreshold] = useState(0.3)
   const [showFilters, setShowFilters] = useState(false)
-  const [knowledgeBases, setKnowledgeBases] = useState([])
 
   // Pagination (semantic search)
   const [offset, setOffset] = useState(0)
@@ -92,7 +96,6 @@ export default function SearchPage() {
   }, [debouncedQuery, activeTab])
 
   useEffect(() => {
-    listKnowledgeBases().then(setKnowledgeBases).catch(console.error)
     getSearchHistory(20).then(setHistory).catch(console.error)
   }, [])
 
@@ -301,6 +304,23 @@ export default function SearchPage() {
     setSelectedShow(null)
     setEpisodes([])
     setError(null)
+  }
+
+  async function handleAddEpisode(episode, showMeta) {
+    const enriched = {
+      ...episode,
+      feedTitle: showMeta?.title || '',
+      feedImage: showMeta?.artwork || '',
+      feedUrl: showMeta?.feedUrl || '',
+      feedId: showMeta?.id,
+    }
+    try {
+      const { alreadyProcessed } = await addPodcastFromIndex(null, enriched)
+      refresh()
+      toast.success(alreadyProcessed ? 'Episode already in library' : 'Episode added to library')
+    } catch (err) {
+      toast.error(err.message || 'Failed to add episode')
+    }
   }
 
   const selectedKBName = useMemo(() => {
@@ -619,7 +639,12 @@ export default function SearchPage() {
                   <div className="flex flex-col gap-1">
                     <div className="text-[12px] mono mute mb-2">{episodes.length} episodes</div>
                     {episodes.map((ep) => (
-                      <EpisodeRow key={ep.id} episode={ep} />
+                      <EpisodeRow
+                        key={ep.id}
+                        episode={ep}
+                        showMetadata={selectedShow}
+                        onAdd={handleAddEpisode}
+                      />
                     ))}
                   </div>
                 )}
@@ -641,24 +666,30 @@ export default function SearchPage() {
                       {shows.length} podcast{shows.length !== 1 ? 's' : ''} found
                     </div>
                     {shows.map((show) => (
-                      <button
+                      <div
                         key={show.id}
-                        onClick={() => handleSelectShow(show)}
-                        className="w-full flex gap-3 p-3 text-left transition-colors rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] border border-transparent hover:border-[var(--border)]"
+                        className="flex gap-3 p-3 rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]"
                       >
                         {show.artwork ? (
                           <img
                             src={show.artwork}
                             alt=""
-                            className="w-12 h-12 object-cover shrink-0 rounded-[var(--r-sm)]"
+                            className="w-12 h-12 object-cover shrink-0 rounded-[var(--r-sm)] cursor-pointer"
+                            onClick={() => handleSelectShow(show)}
                             onError={(e) => { e.currentTarget.style.visibility = 'hidden' }}
                           />
                         ) : (
-                          <div className="w-12 h-12 rounded-[var(--r-sm)] bg-[var(--surface)] grid place-items-center shrink-0 mute border border-[var(--border)]">
+                          <div
+                            className="w-12 h-12 rounded-[var(--r-sm)] bg-[var(--surface)] grid place-items-center shrink-0 mute border border-[var(--border)] cursor-pointer"
+                            onClick={() => handleSelectShow(show)}
+                          >
                             <Icons.Headphones size={18} />
                           </div>
                         )}
-                        <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => handleSelectShow(show)}
+                          className="flex-1 min-w-0 text-left bg-transparent border-none p-0"
+                        >
                           <p className="text-[14px] font-medium line-clamp-1 m-0">
                             {decodeHtml(show.title)}
                           </p>
@@ -668,9 +699,18 @@ export default function SearchPage() {
                             {show.episodeCount && show.description ? ' · ' : ''}
                             {decodeHtml(show.description)?.slice(0, 100)}
                           </p>
+                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <SubscribeButton show={show} compact />
+                          <button
+                            onClick={() => handleSelectShow(show)}
+                            className="mute hover:text-[var(--text)] transition-colors"
+                            title="Browse episodes"
+                          >
+                            <Icons.Arrow size={14} />
+                          </button>
                         </div>
-                        <Icons.Arrow size={14} className="mute shrink-0 mt-3" />
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -732,7 +772,11 @@ function ScopePill({ label, active, onClick }) {
   )
 }
 
-function EpisodeRow({ episode }) {
+function EpisodeRow({ episode, showMetadata, onAdd }) {
+  const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState(false)
+  const hasTranscript = episode.transcripts?.length > 0 || episode.transcriptUrl
+
   const dateStr = episode.datePublished
     ? new Date(episode.datePublished * 1000).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -741,24 +785,57 @@ function EpisodeRow({ episode }) {
       })
     : ''
 
+  async function handleAdd(e) {
+    e.stopPropagation()
+    if (adding || added) return
+    setAdding(true)
+    try {
+      await onAdd(episode, showMetadata)
+      setAdded(true)
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
-    <div className="p-3 rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]">
-      <p className="text-[14px] font-medium line-clamp-2 leading-snug m-0">
-        {decodeHtml(episode.title)}
-      </p>
-      <div className="flex items-center gap-2 mt-1 flex-wrap">
-        {episode.duration > 0 && (
-          <span className="mono text-[11px] text-[var(--accent)]">
-            {formatDuration(episode.duration)}
-          </span>
-        )}
-        {dateStr && <span className="text-[11px] mute">{dateStr}</span>}
-      </div>
-      {episode.description && (
-        <p className="text-[12px] mute mt-1 line-clamp-2 m-0">
-          {decodeHtml(episode.description)?.slice(0, 200)}
+    <div className="flex gap-3 p-3 rounded-[var(--r-lg)] min-h-[44px] hover:bg-[var(--surface)] transition-colors border border-transparent hover:border-[var(--border)]">
+      <div className="flex-1 min-w-0">
+        <p className="text-[14px] font-medium line-clamp-2 leading-snug m-0">
+          {decodeHtml(episode.title)}
         </p>
-      )}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {episode.duration > 0 && (
+            <span className="mono text-[11px] text-[var(--accent)]">
+              {formatDuration(episode.duration)}
+            </span>
+          )}
+          {dateStr && <span className="text-[11px] mute">{dateStr}</span>}
+          {hasTranscript && (
+            <span className="text-[10px] mono text-[var(--accent)] bg-[var(--accent-faint)] px-1.5 py-0.5 rounded">
+              Transcript
+            </span>
+          )}
+        </div>
+        {episode.description && (
+          <p className="text-[12px] mute mt-1 line-clamp-2 m-0">
+            {decodeHtml(episode.description)?.slice(0, 200)}
+          </p>
+        )}
+      </div>
+      <button
+        onClick={handleAdd}
+        disabled={adding || added}
+        className={`shrink-0 self-center flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-[var(--r-sm)] transition-colors disabled:opacity-50 ${
+          added
+            ? 'bg-[var(--accent-faint)] text-[var(--accent)]'
+            : 'bg-[var(--surface)] text-[var(--text-dim)] border border-[var(--border)] hover:text-[var(--accent)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]'
+        }`}
+      >
+        {added ? <Icons.Check size={11} /> : adding ? (
+          <div className="w-3 h-3 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+        ) : <Icons.Plus size={11} />}
+        {added ? 'Added' : 'Add'}
+      </button>
     </div>
   )
 }
