@@ -21,20 +21,26 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   const [loading, setLoading] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [error, setError] = useState(null)
+  const [convError, setConvError] = useState(null)
   const [followUps, setFollowUps] = useState([])
   const endRef = useRef(null)
 
-  useEffect(() => {
+  function loadConversations() {
     setLoadingConversations(true)
+    setConvError(null)
     listConversations(knowledgeBaseId)
       .then(setConversations)
-      .catch(console.error)
+      .catch((err) => setConvError(err.message || 'Failed to load conversations'))
       .finally(() => setLoadingConversations(false))
-  }, [knowledgeBaseId])
+  }
+
+  useEffect(() => { loadConversations() }, [knowledgeBaseId])
 
   useEffect(() => {
     if (activeConvId) {
-      getMessages(activeConvId).then(setMessages).catch(console.error)
+      getMessages(activeConvId)
+        .then(setMessages)
+        .catch((err) => setError(err.message || 'Failed to load messages'))
     }
   }, [activeConvId])
 
@@ -107,7 +113,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-[18px] py-4">
-        {loadingConversations && messages.length === 0 && (
+        {loadingConversations && messages.length === 0 && !convError && (
           <div className="space-y-3 animate-pulse">
             {[1, 2, 3].map(i => (
               <div key={i} className="h-10 bg-[var(--surface)] rounded-[var(--r-md)]" />
@@ -115,7 +121,20 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
           </div>
         )}
 
-        {messages.length === 0 && !loading && !loadingConversations && (
+        {convError && messages.length === 0 && (
+          <div className="text-center py-8 fade-in">
+            <Icons.Chat size={24} className="mx-auto mb-2 mute" />
+            <p className="text-[13px] dim mb-3">{convError}</p>
+            <button
+              onClick={loadConversations}
+              className="px-3 py-1.5 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {messages.length === 0 && !loading && !loadingConversations && !convError && (
           <div className="fade-in">
             <div className="text-[11px] mono mute uppercase tracking-[0.1em] mb-2.5">Try</div>
             <div className="flex flex-col gap-1.5">

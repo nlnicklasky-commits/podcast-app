@@ -412,6 +412,7 @@ function TranscriptView({ transcript, highlightTime, onSeek }) {
   const [, setSearchParams] = useSearchParams()
   const highlightRef = useRef(null)
   const hasScrolled = useRef(false)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     if (highlightTime != null && highlightRef.current && !hasScrolled.current) {
@@ -440,12 +441,17 @@ function TranscriptView({ transcript, highlightTime, onSeek }) {
     <div
       className="p-4 sm:p-5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]"
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <h3 className="text-[11px] mono uppercase tracking-[0.08em] text-[var(--accent)]">
           Full Transcript
         </h3>
-        {transcript.word_count && (
-          <span className="text-[11px] mono mute">
+        {(!transcript.segments || transcript.segments.length === 0) && (
+          <span className="text-[9px] mono px-1.5 py-0.5 rounded bg-[var(--bg-2)] text-[var(--text-mute)]">
+            text only
+          </span>
+        )}
+        {transcript.word_count > 0 && (
+          <span className="ml-auto text-[11px] mono mute">
             {transcript.word_count.toLocaleString()} words
           </span>
         )}
@@ -482,9 +488,21 @@ function TranscriptView({ transcript, highlightTime, onSeek }) {
           })}
         </div>
       ) : (
-        <p className="text-sm dim leading-relaxed whitespace-pre-wrap">
-          {transcript.full_text}
-        </p>
+        <>
+          <p className={`text-sm dim leading-relaxed whitespace-pre-wrap ${!expanded && transcript.full_text?.length > 3000 ? 'max-h-[400px] overflow-hidden' : ''}`}>
+            {transcript.full_text}
+          </p>
+          {transcript.full_text?.length > 3000 && !expanded && (
+            <div className="relative -mt-12 pt-12 bg-gradient-to-t from-[var(--surface)] to-transparent">
+              <button
+                onClick={() => setExpanded(true)}
+                className="block mx-auto px-4 py-1.5 text-[12px] mono bg-[var(--bg-2)] border border-[var(--border)] rounded-full hover:border-[var(--accent)] transition-colors"
+              >
+                Show full transcript
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
