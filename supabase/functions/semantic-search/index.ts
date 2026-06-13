@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCaller } from "../_shared/auth.ts";
 
 const ALLOWED_ORIGINS = [
   "https://podcast-app-ten-gamma.vercel.app",
@@ -26,6 +27,9 @@ const TIMEOUT_EMBEDDING = 2 * 60 * 1000;
 const ErrorCode = {
   MISSING_PARAM: "MISSING_PARAM",
   INVALID_PARAM: "INVALID_PARAM",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
   CONFIG_ERROR: "CONFIG_ERROR",
   EMBEDDING_FAILED: "EMBEDDING_FAILED",
   EMBEDDING_TIMEOUT: "EMBEDDING_TIMEOUT",
@@ -142,18 +146,107 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Extract user_id from the incoming JWT for user-scoped writes
-    let callingUserId: string | null = null;
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const userClient = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } },
+    // Resolve the caller's identity from the incoming Authorization header.
+    // The service role bypasses RLS, so this function enforces ownership itself.
+    // A service-role caller (e.g. internal/cron) is trusted with userId: null;
+    // a frontend caller presents a session JWT we validate into a userId.
+    const { userId: callingUserId, isService } = await resolveCaller(req);
+
+    // Require an authenticated caller. Anonymous / invalid-token requests are
+    // refused before any owned data is touched.
+    if (!callingUserId && !isService) {
+      return errorResponse(
+        "Authentication required",
+        ErrorCode.UNAUTHORIZED,
+        401,
+        corsHeaders,
       );
-      const { data: { user } } = await userClient.auth.getUser();
-      callingUserId = user?.id ?? null;
     }
+
+    // Enforce ownership for scoped searches before doing any expensive work.
+    if (scopeType === "knowledge_base") {
+      // The caller may only search a knowledge base they own.
+      const { data: kb, error: kbErr } = await supabase
+        .from("knowledge_bases")
+        .select("id, user_id")
+        .eq("id", scopeId)
+        .limit(1);
+
+      if (kbErr) {
+        return errorResponse(
+          `Ownership check failed: ${kbErr.message}`,
+          ErrorCode.SEARCH_FAILED,
+          500,
+          corsHeaders,
+        );
+      }
+      if (!kb || kb.length === 0) {
+        return errorResponse(
+          "Knowledge base not found",
+          ErrorCode.NOT_FOUND,
+          404,
+          corsHeaders,
+        );
+      }
+      // Service callers are trusted; user callers must match the owner.
+      if (!isService && kb[0].user_id !== callingUserId) {
+        return errorResponse(
+          "You do not have access to this knowledge base",
+          ErrorCode.FORBIDDEN,
+          403,
+          corsHeaders,
+        );
+      }
+    } else if (scopeType === "podcast") {
+      // Podcasts are a shared catalog with no user_id; a user "owns" a podcast
+      // transitively by owning a knowledge base linked to it via the junction.
+      // Service callers skip the gate (trusted catalog read).
+      if (!isService) {
+        // Shared catalog: an unlinked podcast has no owner, so any signed-in
+        // user may search it. Refuse only when it IS linked to knowledge bases
+        // and none of those belong to this user.
+        const { data: allLinks, error: allErr } = await supabase
+          .from("knowledge_base_podcasts")
+          .select("id")
+          .eq("podcast_id", scopeId);
+        if (allErr) {
+          return errorResponse(
+            `Ownership check failed: ${allErr.message}`,
+            ErrorCode.SEARCH_FAILED,
+            500,
+            corsHeaders,
+          );
+        }
+        if (allLinks && allLinks.length > 0) {
+          const { data: ownedLink, error: linkErr } = await supabase
+            .from("knowledge_base_podcasts")
+            .select("knowledge_base_id, knowledge_bases!inner(user_id)")
+            .eq("podcast_id", scopeId)
+            .eq("knowledge_bases.user_id", callingUserId)
+            .limit(1);
+          if (linkErr) {
+            return errorResponse(
+              `Ownership check failed: ${linkErr.message}`,
+              ErrorCode.SEARCH_FAILED,
+              500,
+              corsHeaders,
+            );
+          }
+          if (!ownedLink || ownedLink.length === 0) {
+            return errorResponse(
+              "You do not have access to this podcast",
+              ErrorCode.FORBIDDEN,
+              403,
+              corsHeaders,
+            );
+          }
+        }
+      }
+    }
+    // NOTE: scope 'all' performs a global catalog search with no per-user
+    // filtering. This is acceptable while the app is effectively single-tenant,
+    // but it is NOT multi-tenant-safe: it can surface chunks from podcasts the
+    // caller does not own. Revisit (scope by owned KBs) before going multi-user.
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiKey) {
@@ -338,7 +431,8 @@ Deno.serve(async (req: Request) => {
       };
     });
 
-    // 6. Save to search_history
+    // 6. Save to search_history — attribute the search to the calling user.
+    // A trusted service caller has no user_id, so the column is left null.
     const historyEntry: Record<string, unknown> = {
       query: query.trim(),
       result_count: results.length,

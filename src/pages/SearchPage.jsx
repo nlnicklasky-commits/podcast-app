@@ -8,6 +8,7 @@ import { useToast } from '../lib/ToastContext'
 import SemanticSearchResult from '../components/SemanticSearchResult'
 import SubscribeButton from '../components/SubscribeButton'
 import PodcastImage from '../components/PodcastImage'
+import { Button, EmptyState } from '../components/ui'
 import { formatDuration } from '../lib/utils'
 import * as Icons from '../components/Icons'
 
@@ -31,6 +32,9 @@ export default function SearchPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const inputRef = useRef(null)
+  // Request-id guards: a slow earlier response must not clobber a newer one
+  const semanticReqId = useRef(0)
+  const podcastReqId = useRef(0)
   const { knowledgeBases, refresh } = useData()
 
   useEffect(() => { document.title = 'Search — PodBrain' }, [])
@@ -79,6 +83,10 @@ export default function SearchPage() {
 
   const debouncedQuery = useDebounce(query, 300)
 
+  // Latest query value for effects that should not re-run on every keystroke
+  const queryRef = useRef(query)
+  useEffect(() => { queryRef.current = query }, [query])
+
   useEffect(() => {
     const currentQ = searchParams.get('q') || ''
     const currentTab = searchParams.get('tab') || 'transcripts'
@@ -96,7 +104,7 @@ export default function SearchPage() {
       }
       setSearchParams(next, { replace: true })
     }
-  }, [debouncedQuery, activeTab])
+  }, [debouncedQuery, activeTab, searchParams, setSearchParams])
 
   useEffect(() => {
     getSearchHistory(20).then(setHistory).catch(console.error)
@@ -126,6 +134,7 @@ export default function SearchPage() {
   const doSemanticSearch = useCallback(async (q, searchOffset = 0, append = false) => {
     if (!q || q.trim().length < 3) return
 
+    const reqId = ++semanticReqId.current
     setLoading(true)
     setError(null)
     setActiveIndex(-1)
@@ -140,6 +149,9 @@ export default function SearchPage() {
         threshold,
       })
 
+      // Ignore results from a superseded request
+      if (reqId !== semanticReqId.current) return
+
       setResults((prev) => append ? [...prev, ...data.results] : data.results)
       setQueryTimeMs(data.query_time_ms)
       setHasMore(data.results.length === PAGE_SIZE)
@@ -150,10 +162,11 @@ export default function SearchPage() {
         getSearchHistory(20).then(setHistory).catch(console.error)
       }
     } catch (err) {
+      if (reqId !== semanticReqId.current) return
       setError(err.message)
       if (!append) setResults([])
     } finally {
-      setLoading(false)
+      if (reqId === semanticReqId.current) setLoading(false)
     }
   }, [scopeType, scopeId, threshold])
 
@@ -161,6 +174,7 @@ export default function SearchPage() {
   const doPodcastSearch = useCallback(async (q) => {
     if (!q || q.trim().length < 2) return
 
+    const reqId = ++podcastReqId.current
     setLoading(true)
     setError(null)
     setSelectedShow(null)
@@ -168,13 +182,16 @@ export default function SearchPage() {
 
     try {
       const data = await searchShows(q)
+      // Ignore results from a superseded request
+      if (reqId !== podcastReqId.current) return
       setShows(data)
       setShowsSearched(true)
     } catch (err) {
+      if (reqId !== podcastReqId.current) return
       setError(err.message)
       setShows([])
     } finally {
-      setLoading(false)
+      if (reqId === podcastReqId.current) setLoading(false)
     }
   }, [])
 
@@ -281,10 +298,13 @@ export default function SearchPage() {
     }
   }
 
-  // Re-trigger search after scope state has settled
+  // Re-trigger search after scope state has settled.
+  // Reads the latest query from a ref so it fires only on scope change,
+  // not on every keystroke.
   useEffect(() => {
-    if (scopeChangeFlag > 0 && query.trim().length >= 3) {
-      doSemanticSearch(query, 0, false)
+    const q = queryRef.current
+    if (scopeChangeFlag > 0 && q.trim().length >= 3) {
+      doSemanticSearch(q, 0, false)
     }
   }, [scopeChangeFlag, doSemanticSearch])
 
@@ -342,14 +362,22 @@ export default function SearchPage() {
         <h1 className="serif text-2xl sm:text-[28px] font-medium tracking-tight mb-5">Search</h1>
 
         {/* Tab toggle */}
-        <div className="flex gap-1 mb-4 p-0.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] w-full sm:w-fit">
+        <div
+          role="tablist"
+          aria-label="Search mode"
+          className="flex gap-1 mb-4 p-0.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] w-full sm:w-fit"
+        >
           <TabButton
+            id="tab-transcripts"
+            panelId="panel-transcripts"
             active={activeTab === 'transcripts'}
             onClick={() => handleTabChange('transcripts')}
             icon={<Icons.FileText size={14} />}
             label="Search Transcripts"
           />
           <TabButton
+            id="tab-podcasts"
+            panelId="panel-podcasts"
             active={activeTab === 'podcasts'}
             onClick={() => handleTabChange('podcasts')}
             icon={<Icons.Headphones size={14} />}
@@ -359,9 +387,11 @@ export default function SearchPage() {
 
         {/* Search bar */}
         <div className="relative mb-4">
+          <label htmlFor="search-query" className="sr-only">{placeholderText}</label>
           <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] focus-within:border-[var(--accent-soft)] transition-colors">
             <Icons.Search size={16} className="mute shrink-0" />
             <input
+              id="search-query"
               ref={inputRef}
               type="text"
               value={query}
@@ -408,8 +438,8 @@ export default function SearchPage() {
           <div className="mb-4 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)]">
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
               {/* Scope */}
-              <div>
-                <label className="text-[10px] mono mute uppercase tracking-[0.1em] block mb-1.5">Scope</label>
+              <div role="group" aria-labelledby="search-scope-label">
+                <span id="search-scope-label" className="text-[10px] mono mute uppercase tracking-[0.1em] block mb-1.5">Scope</span>
                 <div className="flex gap-1 flex-wrap">
                   <ScopePill
                     label="All Podcasts"
@@ -429,16 +459,19 @@ export default function SearchPage() {
 
               {/* Threshold */}
               <div>
-                <label className="text-[10px] mono mute uppercase tracking-[0.1em] block mb-1.5">
+                <label htmlFor="search-threshold" className="text-[10px] mono mute uppercase tracking-[0.1em] block mb-1.5">
                   Min relevance: {Math.round(threshold * 100)}%
                 </label>
                 <input
+                  id="search-threshold"
                   type="range"
                   min="0.1"
                   max="0.9"
                   step="0.05"
                   value={threshold}
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                  aria-label="Minimum relevance threshold"
+                  aria-valuetext={`${Math.round(threshold * 100)}%`}
                   className="w-32 accent-[var(--accent)]"
                 />
               </div>
@@ -477,7 +510,7 @@ export default function SearchPage() {
 
         {/* ========== SEARCH TRANSCRIPTS TAB ========== */}
         {activeTab === 'transcripts' && (
-          <>
+          <div role="tabpanel" id="panel-transcripts" aria-labelledby="tab-transcripts">
             {/* Results meta */}
             {hasSearched && !loading && (
               <div className="flex items-center justify-between mb-3 text-[12px] mono mute">
@@ -538,11 +571,11 @@ export default function SearchPage() {
 
             {/* No results */}
             {hasSearched && !loading && results.length === 0 && !error && (
-              <div className="text-center py-16">
-                <Icons.Search size={32} className="mx-auto mb-3 mute" />
-                <p className="text-[14px] dim mb-1">No matches found for "{query}"</p>
-                <p className="text-[12px] mute">Try broader terms or lower the relevance threshold.</p>
-              </div>
+              <EmptyState
+                icon={<Icons.Search size={32} />}
+                title={`No matches found for "${query}"`}
+                subtitle="Try broader terms or lower the relevance threshold."
+              />
             )}
 
             {/* Empty state / history */}
@@ -583,20 +616,20 @@ export default function SearchPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-16">
-                    <Icons.Search size={32} className="mx-auto mb-3 mute" />
-                    <p className="text-[14px] dim mb-1">Search across all your podcast transcripts</p>
-                    <p className="text-[12px] mute">Type a question or topic above. Results are ranked by semantic relevance.</p>
-                  </div>
+                  <EmptyState
+                    icon={<Icons.Search size={32} />}
+                    title="Search across all your podcast transcripts"
+                    subtitle="Type a question or topic above. Results are ranked by semantic relevance."
+                  />
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* ========== FIND PODCASTS TAB ========== */}
         {activeTab === 'podcasts' && (
-          <>
+          <div role="tabpanel" id="panel-podcasts" aria-labelledby="tab-podcasts">
             {/* Show detail view (episodes) */}
             {selectedShow ? (
               <>
@@ -619,17 +652,14 @@ export default function SearchPage() {
 
                 {/* Episodes list */}
                 {loadingEpisodes && (
-                  <div className="flex items-center justify-center py-12 gap-2">
-                    <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                    <span className="text-[13px] mute">Loading episodes...</span>
-                  </div>
+                  <RowSkeletonList label="Loading episodes" />
                 )}
 
                 {!loadingEpisodes && episodes.length === 0 && (
-                  <div className="text-center py-12">
-                    <Icons.Headphones size={32} className="mx-auto mb-3 mute" />
-                    <p className="text-[14px] dim">No episodes found</p>
-                  </div>
+                  <EmptyState
+                    icon={<Icons.Headphones size={32} />}
+                    title="No episodes found"
+                  />
                 )}
 
                 {!loadingEpisodes && episodes.length > 0 && (
@@ -648,12 +678,9 @@ export default function SearchPage() {
               </>
             ) : (
               <>
-                {/* Loading spinner */}
+                {/* Loading skeletons */}
                 {loading && (
-                  <div className="flex items-center justify-center py-12 gap-2">
-                    <div className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-                    <span className="text-[13px] mute">Searching podcasts...</span>
-                  </div>
+                  <RowSkeletonList label="Searching podcasts" />
                 )}
 
                 {/* Show results */}
@@ -699,33 +726,39 @@ export default function SearchPage() {
 
                 {/* No results */}
                 {!loading && showsSearched && shows.length === 0 && !error && (
-                  <div className="text-center py-16">
-                    <Icons.Headphones size={32} className="mx-auto mb-3 mute" />
-                    <p className="text-[14px] dim mb-1">No podcasts found for "{query}"</p>
-                    <p className="text-[12px] mute">Try a different name, host, or topic.</p>
-                  </div>
+                  <EmptyState
+                    icon={<Icons.Headphones size={32} />}
+                    title={`No podcasts found for "${query}"`}
+                    subtitle="Try a different name, host, or topic."
+                  />
                 )}
 
                 {/* Empty state */}
                 {!loading && !showsSearched && (
-                  <div className="text-center py-16">
-                    <Icons.Globe size={32} className="mx-auto mb-3 mute" />
-                    <p className="text-[14px] dim mb-1">Discover new podcasts</p>
-                    <p className="text-[12px] mute">Search by podcast name, host, or topic to find shows on Podcast Index.</p>
-                  </div>
+                  <EmptyState
+                    icon={<Icons.Globe size={32} />}
+                    title="Discover new podcasts"
+                    subtitle="Search by podcast name, host, or topic to find shows on Podcast Index."
+                  />
                 )}
               </>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-function TabButton({ active, onClick, icon, label }) {
+function TabButton({ id, panelId, active, onClick, icon, label }) {
   return (
     <button
+      type="button"
+      role="tab"
+      id={id}
+      aria-selected={active}
+      aria-controls={panelId}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-[var(--r-md)] transition-colors flex-1 sm:flex-initial min-h-[44px] sm:min-h-0 ${
         active
@@ -751,6 +784,28 @@ function ScopePill({ label, active, onClick }) {
     >
       {label}
     </button>
+  )
+}
+
+function RowSkeletonList({ label = 'Loading', count = 4 }) {
+  return (
+    <div className="flex flex-col gap-1" role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="flex gap-3 p-3 rounded-[var(--r-lg)] border border-transparent animate-pulse"
+          aria-hidden="true"
+        >
+          <div className="w-12 h-12 rounded bg-[var(--surface)] shrink-0" />
+          <div className="flex-1 min-w-0 flex flex-col justify-center gap-2">
+            <div className="h-3 w-3/4 bg-[var(--surface)] rounded" />
+            <div className="h-2.5 w-2/5 bg-[var(--surface)] rounded" />
+            <div className="h-2.5 w-1/2 bg-[var(--surface)] rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

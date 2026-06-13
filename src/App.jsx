@@ -19,7 +19,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 
 function AuthGate({ children }) {
-  const { loading } = useAuth()
+  const { session, loading } = useAuth()
 
   if (loading) {
     return (
@@ -27,6 +27,10 @@ function AuthGate({ children }) {
         <div className="mute text-sm">Loading...</div>
       </div>
     )
+  }
+
+  if (!session) {
+    return <Navigate to="/auth" replace />
   }
 
   return children

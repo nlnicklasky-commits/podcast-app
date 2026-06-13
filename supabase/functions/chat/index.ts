@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCaller } from "../_shared/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,6 +49,8 @@ Relevant podcast excerpts:
 const ErrorCode = {
   MISSING_PARAM: "MISSING_PARAM",
   NOT_FOUND: "NOT_FOUND",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
   CONFIG_ERROR: "CONFIG_ERROR",
   EMBEDDING_FAILED: "EMBEDDING_FAILED",
   EMBEDDING_TIMEOUT: "EMBEDDING_TIMEOUT",
@@ -135,22 +138,71 @@ Deno.serve(async (req: Request) => {
     }
     const question = sanitizeInput(rawQuestion);
 
+    // Resolve and require an authenticated user. Edge functions run with the
+    // service role key (bypasses RLS), so ownership must be enforced here.
+    const { userId: callingUserId } = await resolveCaller(req);
+    if (!callingUserId) {
+      return errorResponse("Not signed in", ErrorCode.UNAUTHORIZED, 401, corsHeaders);
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Extract user_id from the incoming JWT for user-scoped writes
-    // Direct decode avoids a network round-trip vs getUser()
-    let callingUserId: string | null = null;
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      try {
-        const token = authHeader.replace("Bearer ", "");
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        callingUserId = payload.sub || null;
-      } catch {
-        callingUserId = null;
+    // Verify the caller owns the target knowledge base before doing any work.
+    const { data: kbRows, error: kbErr } = await supabase
+      .from("knowledge_bases")
+      .select("id, user_id")
+      .eq("id", knowledge_base_id)
+      .limit(1);
+    if (kbErr) {
+      return errorResponse(
+        `Failed to load knowledge base: ${kbErr.message}`,
+        ErrorCode.INTERNAL_ERROR,
+        500,
+        corsHeaders,
+      );
+    }
+    const kb = kbRows?.[0];
+    if (!kb) {
+      return errorResponse("Knowledge base not found", ErrorCode.NOT_FOUND, 404, corsHeaders);
+    }
+    if (kb.user_id !== callingUserId) {
+      return errorResponse(
+        "You do not have access to this knowledge base",
+        ErrorCode.FORBIDDEN,
+        403,
+        corsHeaders,
+      );
+    }
+
+    // If continuing an existing conversation, verify the caller owns it.
+    if (conversation_id) {
+      const { data: convRows, error: convErr } = await supabase
+        .from("conversations")
+        .select("id, user_id")
+        .eq("id", conversation_id)
+        .limit(1);
+      if (convErr) {
+        return errorResponse(
+          `Failed to load conversation: ${convErr.message}`,
+          ErrorCode.INTERNAL_ERROR,
+          500,
+          corsHeaders,
+        );
+      }
+      const conv = convRows?.[0];
+      if (!conv) {
+        return errorResponse("Conversation not found", ErrorCode.NOT_FOUND, 404, corsHeaders);
+      }
+      if (conv.user_id !== callingUserId) {
+        return errorResponse(
+          "You do not have access to this conversation",
+          ErrorCode.FORBIDDEN,
+          403,
+          corsHeaders,
+        );
       }
     }
 
@@ -365,8 +417,8 @@ Deno.serve(async (req: Request) => {
       const convInsert: Record<string, unknown> = {
         knowledge_base_id,
         title: question.slice(0, 100),
+        user_id: callingUserId,
       };
-      if (callingUserId) convInsert.user_id = callingUserId;
 
       const { data: conv } = await supabase
         .from("conversations")

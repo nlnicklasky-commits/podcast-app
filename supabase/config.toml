@@ -1,0 +1,38 @@
+# Supabase project configuration.
+#
+# Per-function JWT verification. When `verify_jwt = true`, Supabase rejects any
+# request without a valid Supabase Auth JWT at the gateway before the function
+# runs. User-facing data functions require this so anonymous callers never reach
+# the service-role code path. The two background functions verify nothing at the
+# gateway: process-podcast is invoked internally and poll-subscriptions runs as a
+# cron job presenting the service role key (no end-user JWT exists for it).
+
+[functions.chat]
+verify_jwt = true
+
+[functions.semantic-search]
+verify_jwt = true
+
+[functions.synthesize-kb]
+verify_jwt = true
+
+[functions.podcast-search]
+verify_jwt = true
+
+[functions.podcast-episodes]
+verify_jwt = true
+
+[functions.podcast-discover]
+verify_jwt = true
+
+[functions.resolve-feeds]
+verify_jwt = true
+
+[functions.youtube-search]
+verify_jwt = true
+
+[functions.process-podcast]
+verify_jwt = false
+
+[functions.poll-subscriptions]
+verify_jwt = false

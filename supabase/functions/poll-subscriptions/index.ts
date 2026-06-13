@@ -6,9 +6,35 @@ const MAX_SUBS_PER_RUN = 10;
 const MAX_EPISODES_PER_FEED = 100;
 
 Deno.serve(async (req: Request) => {
+  // JSON content type used on every response from this function. This is a
+  // cron/internal endpoint with no browser callers, so it intentionally has no
+  // CORS headers; error responses below reuse this same header shape.
+  const jsonHeaders = { "Content-Type": "application/json" };
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Auth gate: this runs as a cron job with no end user. Accept the call only
+    // if it presents the shared cron secret (X-Cron-Secret) OR the service role
+    // key as a bearer token. Never call getUser here — there is no user to
+    // resolve. verify_jwt stays false so the cron can reach us unauthenticated
+    // at the platform layer; we enforce trust ourselves below.
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const cronHeader = req.headers.get("X-Cron-Secret");
+    const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+
+    const isAuthorized =
+      (!!cronSecret && cronHeader === cronSecret) ||
+      bearer === serviceRoleKey;
+
+    if (!isAuthorized) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: jsonHeaders },
+      );
+    }
+
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: subs, error: subError } = await supabase
@@ -21,11 +47,17 @@ Deno.serve(async (req: Request) => {
 
     if (subError) {
       console.error("Failed to fetch subscriptions:", subError);
-      return new Response(JSON.stringify({ error: subError.message }), { status: 500 });
+      return new Response(
+        JSON.stringify({ error: subError.message }),
+        { status: 500, headers: jsonHeaders },
+      );
     }
 
     if (!subs || subs.length === 0) {
-      return new Response(JSON.stringify({ message: "No subscriptions to check", processed: 0 }));
+      return new Response(
+        JSON.stringify({ message: "No subscriptions to check", processed: 0 }),
+        { headers: jsonHeaders },
+      );
     }
 
     const results = [];
@@ -80,6 +112,9 @@ Deno.serve(async (req: Request) => {
         const newEpisodes = episodes.filter(ep => !existingSet.has(ep.id));
 
         if (newEpisodes.length > 0) {
+          // podcasts is a SHARED catalog table — it has no user_id column. A user
+          // "owns" a podcast transitively by owning a knowledge base that links to
+          // it via knowledge_base_podcasts. Do NOT set user_id here.
           const rows = newEpisodes.map(ep => ({
             title: ep.title,
             channel: sub.feed_title,
@@ -92,7 +127,6 @@ Deno.serve(async (req: Request) => {
             source: "podcast_index",
             duration_seconds: ep.duration || null,
             status: "pending",
-            user_id: sub.user_id,
           }));
 
           const BATCH = 50;
@@ -109,6 +143,16 @@ Deno.serve(async (req: Request) => {
               insertedIds.push(...inserted.map((r: { id: string }) => r.id));
             }
           }
+
+          // TODO(ownership): These new podcasts are inserted into the shared
+          // catalog but are not yet associated with the subscriber. A user only
+          // "owns" a podcast by owning a knowledge base linked to it via
+          // knowledge_base_podcasts. feed_subscriptions has no knowledge_base_id
+          // column today, so there is no target KB to link these episodes to.
+          // When the subscription model gains a target KB (e.g. a
+          // feed_subscriptions.knowledge_base_id owned by sub.user_id), insert a
+          // knowledge_base_podcasts row { knowledge_base_id, podcast_id } for each
+          // id in insertedIds here. Do not invent that schema in this function.
 
           if (sub.auto_process && insertedIds.length > 0) {
             // Fire-and-forget: don't await process-podcast calls.
@@ -166,13 +210,13 @@ Deno.serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({ processed: results.length, results }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: jsonHeaders },
     );
   } catch (err) {
     console.error("poll-subscriptions error:", err);
     return new Response(
       JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 500, headers: jsonHeaders },
     );
   }
 });

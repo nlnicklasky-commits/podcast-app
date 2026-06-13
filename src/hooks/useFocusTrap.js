@@ -15,7 +15,7 @@ export default function useFocusTrap(active = true) {
       )
 
     const first = () => focusables()[0]
-    const last = () => {
+    const _last = () => {
       const all = focusables()
       return all[all.length - 1]
     }

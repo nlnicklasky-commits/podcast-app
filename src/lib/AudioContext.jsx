@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useAuth } from './useAuth'
 import { useToast } from './ToastContext'
 import { getProgress, saveProgress } from '../services/playback'
@@ -8,6 +8,7 @@ const SAVE_DEBOUNCE_MS = 10_000
 const COMPLETION_THRESHOLD = 0.9
 
 const AudioContext = createContext(null)
+const AudioTimeContext = createContext(null)
 
 export function AudioProvider({ children }) {
   const { user } = useAuth()
@@ -16,6 +17,8 @@ export function AudioProvider({ children }) {
   const lastSaveRef = useRef(0)
   const saveTimerRef = useRef(null)
   const completionSavedRef = useRef(false)
+  const pendingStartRef = useRef(null)
+  const currentPodcastIdRef = useRef(null)
 
   const [track, setTrack] = useState(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -43,7 +46,7 @@ export function AudioProvider({ children }) {
         completed,
       })
     },
-    [user, track?.podcastId],
+    [user, track],
   )
 
   useEffect(() => {
@@ -77,19 +80,30 @@ export function AudioProvider({ children }) {
 
       completionSavedRef.current = false
       lastSaveRef.current = 0
+      currentPodcastIdRef.current = podcastId
       setError(null)
       setTrack({ podcastId, title, channel, thumbnailUrl, enclosureUrl })
       setCurrentTime(0)
       setDuration(0)
 
+      // Remove any queued loadedmetadata listener from a prior, superseded play()
+      if (pendingStartRef.current) {
+        audio.removeEventListener('loadedmetadata', pendingStartRef.current)
+        pendingStartRef.current = null
+      }
+
       audio.src = enclosureUrl
       audio.load()
 
       const applyStart = async () => {
+        // Bail if a newer play() has superseded this one
+        if (currentPodcastIdRef.current !== podcastId) return
+
         let resumeTime = startTime ?? null
 
         if (resumeTime == null && user) {
           const saved = await getProgress(podcastId)
+          if (currentPodcastIdRef.current !== podcastId) return
           if (saved && saved.position_seconds > 0 && !saved.completed) {
             resumeTime = saved.position_seconds
             if (saved.playback_speed) {
@@ -109,6 +123,7 @@ export function AudioProvider({ children }) {
       if (audio.readyState >= 1) {
         applyStart()
       } else {
+        pendingStartRef.current = applyStart
         audio.addEventListener('loadedmetadata', applyStart, { once: true })
       }
     },
@@ -199,36 +214,41 @@ export function AudioProvider({ children }) {
     addToast(msg, 'error')
   }
 
+  const value = useMemo(
+    () => ({
+      track,
+      isPlaying,
+      speed,
+      error,
+      audioRef,
+      play,
+      pause,
+      togglePlay,
+      seek,
+      cycleSpeed,
+      stop,
+    }),
+    [track, isPlaying, speed, error, play, pause, togglePlay, seek, cycleSpeed, stop],
+  )
+
+  const timeValue = useMemo(() => ({ currentTime, duration }), [currentTime, duration])
+
   return (
-    <AudioContext.Provider
-      value={{
-        track,
-        isPlaying,
-        currentTime,
-        duration,
-        speed,
-        error,
-        audioRef,
-        play,
-        pause,
-        togglePlay,
-        seek,
-        cycleSpeed,
-        stop,
-      }}
-    >
-      {children}
-      <audio
-        ref={audioRef}
-        preload="metadata"
-        onPlay={handlePlay}
-        onPause={handlePause}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleEnded}
-        onError={handleError}
-        style={{ display: 'none' }}
-      />
+    <AudioContext.Provider value={value}>
+      <AudioTimeContext.Provider value={timeValue}>
+        {children}
+        <audio
+          ref={audioRef}
+          preload="metadata"
+          onPlay={handlePlay}
+          onPause={handlePause}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onEnded={handleEnded}
+          onError={handleError}
+          style={{ display: 'none' }}
+        />
+      </AudioTimeContext.Provider>
     </AudioContext.Provider>
   )
 }
@@ -236,5 +256,11 @@ export function AudioProvider({ children }) {
 export function useAudio() {
   const ctx = useContext(AudioContext)
   if (!ctx) throw new Error('useAudio must be used within AudioProvider')
+  return ctx
+}
+
+export function useAudioTime() {
+  const ctx = useContext(AudioTimeContext)
+  if (!ctx) throw new Error('useAudioTime must be used within AudioProvider')
   return ctx
 }

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCaller } from "../_shared/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -59,6 +60,8 @@ const ErrorCode = {
   MISSING_PARAM: "MISSING_PARAM",
   NOT_FOUND: "NOT_FOUND",
   CONFIG_ERROR: "CONFIG_ERROR",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
   AUDIO_TOO_LARGE: "AUDIO_TOO_LARGE",
   DOWNLOAD_FAILED: "DOWNLOAD_FAILED",
   DOWNLOAD_TIMEOUT: "DOWNLOAD_TIMEOUT",
@@ -137,6 +140,14 @@ Deno.serve(async (req: Request) => {
       return errorResponse("podcast_id is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
+    // Resolve the caller. The cron / internal path presents the service role key
+    // (isService=true). The frontend presents the user's session JWT, which we
+    // validate into a userId. Anyone else is anonymous and gets refused.
+    const { userId, isService } = await resolveCaller(req);
+    if (!isService && !userId) {
+      return errorResponse("Authentication required", ErrorCode.UNAUTHORIZED, 401, corsHeaders);
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -163,6 +174,40 @@ Deno.serve(async (req: Request) => {
       return errorResponse(`Podcast ${podcast_id} not found`, ErrorCode.NOT_FOUND, 404, corsHeaders);
     }
     const pod = podcast[0];
+
+    // Ownership enforcement for user callers. Podcasts are a shared catalog with
+    // no user_id; a user "owns" a podcast transitively by owning a knowledge base
+    // linked to it via knowledge_base_podcasts -> knowledge_bases.user_id. The
+    // service-role cron path bypasses this check.
+    if (!isService) {
+      // Shared-catalog ownership: a podcast linked to NO knowledge base has no
+      // owner yet, so any signed-in user may process it (e.g. a standalone add
+      // from search/discover). Refuse only when it IS linked to knowledge bases
+      // and none of those belong to this user.
+      const { data: allLinks, error: linkErr } = await supabase
+        .from("knowledge_base_podcasts")
+        .select("id")
+        .eq("podcast_id", pod.id);
+      if (linkErr) throw new Error(`Database error: ${linkErr.message}`);
+
+      if (allLinks && allLinks.length > 0) {
+        const { data: ownedLinks, error: ownErr } = await supabase
+          .from("knowledge_base_podcasts")
+          .select("knowledge_base_id, knowledge_bases!inner(user_id)")
+          .eq("podcast_id", pod.id)
+          .eq("knowledge_bases.user_id", userId)
+          .limit(1);
+        if (ownErr) throw new Error(`Database error: ${ownErr.message}`);
+        if (!ownedLinks?.[0]) {
+          return errorResponse(
+            "You do not have access to this podcast",
+            ErrorCode.FORBIDDEN,
+            403,
+            corsHeaders,
+          );
+        }
+      }
+    }
 
     async function setStatus(status: string, error_message?: string) {
       await supabase

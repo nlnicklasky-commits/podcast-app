@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { callEdgeFunction } from './_edge'
 
 /**
  * Trigger the full processing pipeline for a podcast.
@@ -13,31 +14,11 @@ import { supabase } from '../lib/supabase'
 export async function processPodcast(podcastId) {
   if (!podcastId) throw new Error('Failed to start processing: podcast ID is required')
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-  let response
-  try {
-    response = await fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ podcast_id: podcastId }),
-    })
-  } catch (networkError) {
-    throw new Error(`Failed to start processing: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(
-      err.error || `Failed to start processing: edge function returned HTTP ${response.status}`
-    )
-  }
-
-  return response.json()
+  return callEdgeFunction(
+    'process-podcast',
+    { podcast_id: podcastId },
+    { errorPrefix: 'Failed to start processing' },
+  )
 }
 
 /**

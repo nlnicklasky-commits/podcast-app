@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+import { callEdgeFunction } from './_edge'
 
 /**
  * Generate a cross-podcast synthesis for a knowledge base.
@@ -10,34 +9,11 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 export async function generateSynthesis(knowledgeBaseId) {
   if (!knowledgeBaseId) throw new Error('Synthesis failed: knowledge base ID is required')
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY
-
-  let response
-  try {
-    response = await fetch(
-      `${SUPABASE_URL}/functions/v1/synthesize-kb`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ knowledgeBaseId }),
-      },
-    )
-  } catch (networkError) {
-    throw new Error(`Synthesis failed: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(
-      err.error || `Synthesis failed: edge function returned HTTP ${response.status}`
-    )
-  }
-
-  return response.json()
+  return callEdgeFunction(
+    'synthesize-kb',
+    { knowledgeBaseId },
+    { errorPrefix: 'Synthesis failed' },
+  )
 }
 
 /**

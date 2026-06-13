@@ -1,16 +1,16 @@
 import { supabase } from '../lib/supabase'
+import { callEdgeFunction } from './_edge'
 
-function fireProcessing(podcastId) {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  fetch(`${supabaseUrl}/functions/v1/process-podcast`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ podcast_id: podcastId }),
-  }).catch(() => {})
+async function fireProcessing(podcastId) {
+  try {
+    await callEdgeFunction(
+      'process-podcast',
+      { podcast_id: podcastId },
+      { errorPrefix: 'Failed to start processing' },
+    )
+  } catch (err) {
+    console.error(`Failed to fire processing for podcast ${podcastId}:`, err.message)
+  }
 }
 
 /**
@@ -176,7 +176,7 @@ export async function addPodcastFromIndex(knowledgeBaseId, episode) {
   }
 
   if (transcriptUrl) {
-    fireProcessing(podcast.id)
+    await fireProcessing(podcast.id)
   }
 
   return { podcast, alreadyProcessed: false }
@@ -218,8 +218,8 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
   const alreadyExisting = []
 
   for (const ep of episodes) {
-    if (ep.id && existingMap.has(ep.id)) {
-      alreadyExisting.push({ episodeIndexId: ep.id, podcastId: existingMap.get(ep.id) })
+    if (ep.id && existingMap.has(Number(ep.id))) {
+      alreadyExisting.push({ episodeIndexId: ep.id, podcastId: existingMap.get(Number(ep.id)) })
     } else {
       let transcriptUrl = null
       if (ep.transcripts && ep.transcripts.length > 0) {
@@ -297,16 +297,17 @@ export async function bulkAddEpisodesFromIndex(knowledgeBaseId, episodes, showMe
 }
 
 /**
- * Remove a podcast from a knowledge base.
+ * Remove a podcast from a knowledge base (unlink only).
  *
- * This unlinks the podcast from the KB. If no other KBs reference it,
- * the podcast row itself is deleted (cascading to transcripts, chunks, insights).
+ * Deletes the knowledge_base_podcasts junction row. The podcast row itself
+ * is left intact — orphaned shared podcasts are harmless and remain in the
+ * standalone list. True deletion is via the delete_podcast_data RPC.
  */
 export async function removePodcastFromKB(knowledgeBaseId, podcastId) {
   if (!knowledgeBaseId) throw new Error('Failed to remove podcast: knowledge base ID is required')
   if (!podcastId) throw new Error('Failed to remove podcast: podcast ID is required')
 
-  // Remove the junction row
+  // Remove the junction row only
   const { error } = await supabase
     .from('knowledge_base_podcasts')
     .delete()
@@ -314,22 +315,4 @@ export async function removePodcastFromKB(knowledgeBaseId, podcastId) {
     .eq('podcast_id', podcastId)
 
   if (error) throw new Error(`Failed to remove podcast from knowledge base: ${error.message}`)
-
-  // Check if any other KBs still reference this podcast
-  const { data: remaining, error: checkError } = await supabase
-    .from('knowledge_base_podcasts')
-    .select('id')
-    .eq('podcast_id', podcastId)
-
-  if (checkError) throw new Error(`Failed to check podcast references: ${checkError.message}`)
-
-  // If orphaned, delete the podcast entirely
-  if (!remaining || remaining.length === 0) {
-    const { error: deleteError } = await supabase
-      .from('podcasts')
-      .delete()
-      .eq('id', podcastId)
-
-    if (deleteError) throw new Error(`Failed to delete orphaned podcast: ${deleteError.message}`)
-  }
 }

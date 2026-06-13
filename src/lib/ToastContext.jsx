@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react'
 
 const ToastContext = createContext(null)
 
@@ -44,8 +44,9 @@ export function ToastProvider({ children }) {
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const timers = timersRef.current
     return () => {
-      Object.values(timersRef.current).forEach(clearTimeout)
+      Object.values(timers).forEach(clearTimeout)
     }
   }, [])
 
@@ -55,8 +56,10 @@ export function ToastProvider({ children }) {
     info: 'border-l-2 border-l-[var(--text-mute)]',
   }
 
+  const value = useMemo(() => ({ addToast, removeToast }), [addToast, removeToast])
+
   return (
-    <ToastContext.Provider value={{ addToast, removeToast }}>
+    <ToastContext.Provider value={value}>
       {children}
 
       {/* Toast overlay */}
@@ -65,6 +68,8 @@ export function ToastProvider({ children }) {
           {toasts.map((toast) => (
             <div
               key={toast.id}
+              role={toast.type === 'error' ? 'alert' : 'status'}
+              aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
               className={`fade-in bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] px-3.5 py-2.5 text-[13px] shadow-lg max-w-[320px] flex items-start gap-2 ${borderColorClass[toast.type] || borderColorClass.info}`}
             >
               <span className="flex-1 text-[var(--text)]">{toast.message}</span>

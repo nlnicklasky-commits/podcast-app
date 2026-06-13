@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { generateSynthesis, getSynthesis } from '../services/synthesis'
 import { synthesisToMarkdown, downloadMarkdown, slugify } from '../lib/export'
-import { Tag } from './ui'
+import { Tag, Button, EmptyState } from './ui'
 import * as Icons from './Icons'
 import { timeAgo } from '../lib/utils'
 
@@ -11,16 +11,16 @@ export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) 
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
 
-  function loadSynthesis() {
+  const loadSynthesis = useCallback(() => {
     setLoading(true)
     setError(null)
     getSynthesis(knowledgeBaseId)
       .then(setSynthesis)
       .catch((err) => setError(err.message || 'Failed to load synthesis'))
       .finally(() => setLoading(false))
-  }
+  }, [knowledgeBaseId])
 
-  useEffect(() => { loadSynthesis() }, [knowledgeBaseId])
+  useEffect(() => { loadSynthesis() }, [loadSynthesis])
 
   async function handleGenerate() {
     if (generating) return
@@ -42,15 +42,14 @@ export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) 
 
   if (error && !synthesis) {
     return (
-      <div className="text-center py-8 fade-in">
-        <p className="text-[13px] dim mb-3">{error}</p>
-        <button
-          onClick={loadSynthesis}
-          className="px-3 py-1.5 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
-        >
-          Retry
-        </button>
-      </div>
+      <EmptyState
+        title={error}
+        action={
+          <Button variant="secondary" size="sm" onClick={loadSynthesis}>
+            Retry
+          </Button>
+        }
+      />
     )
   }
 
@@ -59,27 +58,27 @@ export default function SynthesisPanel({ knowledgeBaseId, kbName, readyCount }) 
   // No synthesis yet — show prompt
   if (!synthesis) {
     return (
-      <div className="text-center py-12 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]">
-        <Icons.Sparkle size={28} className="mx-auto mb-3 text-[var(--accent)]" />
-        <p className="serif text-[18px] tracking-tight mb-1">Cross-Podcast Synthesis</p>
-        <p className="text-sm mute mb-5 max-w-[360px] mx-auto">
-          {canGenerate
+      <EmptyState
+        icon={<Icons.Sparkle size={28} className="text-[var(--accent)]" />}
+        title="Cross-Podcast Synthesis"
+        subtitle={
+          canGenerate
             ? 'Analyze themes, agreements, and disagreements across all episodes in this knowledge base.'
-            : `Add and process at least 2 podcasts to generate a synthesis. Currently ${readyCount} ready.`}
-        </p>
-        {canGenerate && (
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="px-4 py-2 text-sm font-semibold bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)] disabled:opacity-50"
-          >
-            {generating ? 'Generating...' : 'Generate Synthesis'}
-          </button>
-        )}
-        {error && (
-          <p className="mt-3 text-[12px] text-[var(--error)]">{error}</p>
-        )}
-      </div>
+            : `Add and process at least 2 podcasts to generate a synthesis. Currently ${readyCount} ready.`
+        }
+        action={
+          canGenerate && (
+            <div className="flex flex-col items-center gap-3">
+              <Button onClick={handleGenerate} loading={generating}>
+                {generating ? 'Generating...' : 'Generate Synthesis'}
+              </Button>
+              {error && (
+                <p className="text-[12px] text-[var(--error)]">{error}</p>
+              )}
+            </div>
+          )
+        }
+      />
     )
   }
 

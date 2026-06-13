@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { parseOPML, readFileAsText } from '../lib/opml'
 import { resolveFeeds, getEpisodes } from '../services/podcastIndex'
 import { subscribe } from '../services/subscriptions'
@@ -24,12 +24,21 @@ export default function OPMLImportModal({ onClose }) {
   const [selected, setSelected] = useState(new Set())
   const [recentCount, setRecentCount] = useState(0)
   const [resolving, setResolving] = useState(false)
-  const [importing, setImporting] = useState(false)
+  const [, setImporting] = useState(false)
   const [progress, setProgress] = useState(null)
   const [error, setError] = useState('')
   const fileRef = useRef(null)
   const trapRef = useFocusTrap()
   useScrollLock()
+
+  // Close on Escape
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
@@ -161,12 +170,13 @@ export default function OPMLImportModal({ onClose }) {
         ref={trapRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="opml-import-title"
         onClick={e => e.stopPropagation()}
         className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[12px_12px_var(--r-lg)_var(--r-lg)]"
       >
         {/* Header */}
         <div className="flex items-center px-[18px] py-3.5 shrink-0 border-b border-[var(--border)]">
-          <h3 className="m-0 text-[15px] font-medium flex-1">Import OPML</h3>
+          <h3 id="opml-import-title" className="m-0 text-[15px] font-medium flex-1">Import OPML</h3>
           <button onClick={onClose} className="ml-auto mute shrink-0" aria-label="Close">
             <Icons.X size={16} />
           </button>
@@ -232,12 +242,15 @@ export default function OPMLImportModal({ onClose }) {
                     {resolved.map(feed => (
                       <label
                         key={feed.feedId}
+                        htmlFor={`opml-feed-${feed.feedId}`}
                         className="flex items-center gap-3 p-2.5 rounded-[var(--r-md)] cursor-pointer transition-colors hover:bg-[var(--surface)]"
                       >
                         <input
+                          id={`opml-feed-${feed.feedId}`}
                           type="checkbox"
                           checked={selected.has(feed.feedId)}
                           onChange={() => toggleFeed(feed.feedId)}
+                          aria-label={feed.title}
                           className="w-3.5 h-3.5 accent-[var(--accent)] shrink-0"
                         />
                         {feed.artwork && (

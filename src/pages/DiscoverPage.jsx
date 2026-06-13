@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { getCategories, getTrendingShows } from '../services/podcastIndex'
 import SubscribeButton from '../components/SubscribeButton'
 import AddPodcastModal from '../components/AddPodcastModal'
@@ -8,8 +7,22 @@ import { useData } from '../lib/DataContext'
 import { DiscoverSkeleton } from '../components/Skeleton'
 import * as Icons from '../components/Icons'
 
+function decodeHtml(html) {
+  if (!html) return ''
+  const txt = document.createElement('textarea')
+  txt.innerHTML = html
+  return txt.value
+}
+
+function decodeShows(shows) {
+  return shows.map(show => ({
+    ...show,
+    title: decodeHtml(show.title),
+    description: decodeHtml(show.description),
+  }))
+}
+
 export default function DiscoverPage() {
-  const navigate = useNavigate()
   const { refresh } = useData()
   const [categories, setCategories] = useState([])
   const [shows, setShows] = useState([])
@@ -34,7 +47,7 @@ export default function DiscoverPage() {
         getTrendingShows(null, 20),
       ])
       setCategories(cats)
-      setShows(trending)
+      setShows(decodeShows(trending))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -48,7 +61,7 @@ export default function DiscoverPage() {
     setError(null)
     try {
       const results = await getTrendingShows(cat.id, 30)
-      setShows(results)
+      setShows(decodeShows(results))
     } catch (err) {
       setError(err.message)
       setShows([])
@@ -63,7 +76,7 @@ export default function DiscoverPage() {
     setError(null)
     try {
       const trending = await getTrendingShows(null, 20)
-      setShows(trending)
+      setShows(decodeShows(trending))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -71,15 +84,8 @@ export default function DiscoverPage() {
     }
   }
 
-  function decodeHtml(html) {
-    if (!html) return ''
-    const txt = document.createElement('textarea')
-    txt.innerHTML = html
-    return txt.value
-  }
-
   async function handleAddFromIndex(episode) {
-    const { podcast, alreadyProcessed } = await addPodcastFromIndex(null, episode)
+    const { alreadyProcessed } = await addPodcastFromIndex(null, episode)
     refresh()
     return { alreadyProcessed }
   }
@@ -162,12 +168,12 @@ export default function DiscoverPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-medium line-clamp-1 m-0">
-                    {decodeHtml(show.title)}
+                    {show.title}
                   </p>
                   <p className="text-[12px] dim mt-0.5 m-0 truncate">{show.author}</p>
                   <p className="text-[11px] mute mt-0.5 line-clamp-1 m-0">
                     {show.episodeCount ? `${show.episodeCount} episodes` : ''}
-                    {show.description ? (show.episodeCount ? ' · ' : '') + decodeHtml(show.description).slice(0, 60) : ''}
+                    {show.description ? (show.episodeCount ? ' · ' : '') + show.description.slice(0, 60) : ''}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <button

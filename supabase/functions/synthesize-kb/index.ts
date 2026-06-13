@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveCaller } from "../_shared/auth.ts";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -27,6 +28,8 @@ const TIMEOUT_SYNTHESIS = 3 * 60 * 1000; // 3 min
 
 const ErrorCode = {
   MISSING_PARAM: "MISSING_PARAM",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
   CONFIG_ERROR: "CONFIG_ERROR",
   INSUFFICIENT_DATA: "INSUFFICIENT_DATA",
@@ -130,6 +133,14 @@ Deno.serve(async (req: Request) => {
       return errorResponse("knowledgeBaseId is required", ErrorCode.MISSING_PARAM, 400, corsHeaders);
     }
 
+    // Resolve the caller. The cron / internal path presents the service role key
+    // (isService=true). The frontend presents the user's session JWT, which we
+    // validate into a userId. Anyone else is anonymous and gets refused.
+    const { userId, isService } = await resolveCaller(req);
+    if (!isService && !userId) {
+      return errorResponse("Authentication required", ErrorCode.UNAUTHORIZED, 401, corsHeaders);
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -143,7 +154,7 @@ Deno.serve(async (req: Request) => {
     // 1. Verify KB exists
     const { data: kbData, error: kbError } = await supabase
       .from("knowledge_bases")
-      .select("id, name")
+      .select("id, name, user_id")
       .eq("id", knowledgeBaseId)
       .limit(1);
 
@@ -152,6 +163,18 @@ Deno.serve(async (req: Request) => {
     }
     if (!kbData || kbData.length === 0) {
       return errorResponse("Knowledge base not found", ErrorCode.NOT_FOUND, 404, corsHeaders);
+    }
+
+    // Ownership enforcement for user callers. Knowledge bases carry a user_id;
+    // the caller must own this KB before we spend money on GPT synthesis. The
+    // service-role cron path bypasses this check.
+    if (!isService && kbData[0].user_id !== userId) {
+      return errorResponse(
+        "You do not have access to this knowledge base",
+        ErrorCode.FORBIDDEN,
+        403,
+        corsHeaders,
+      );
     }
 
     // 2. Get all processed podcasts in this KB

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from './supabase'
 import { AuthContext } from './auth-context'
 
@@ -22,11 +22,14 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  const value = {
-    session,
-    user: session?.user ?? null,
-    loading,
-  }
+  const value = useMemo(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      loading,
+    }),
+    [session, loading],
+  )
 
   return (
     <AuthContext.Provider value={value}>

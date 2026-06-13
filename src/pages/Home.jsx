@@ -1,22 +1,29 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createKnowledgeBase, deleteKnowledgeBase } from '../services/knowledgeBases'
 import { addPodcastFromIndex } from '../services/podcasts'
 import { getRecentProgress } from '../services/playback'
 import { useData } from '../lib/DataContext'
-import CreateKBModal from '../components/CreateKBModal'
-import AddPodcastModal from '../components/AddPodcastModal'
+import { useToast } from '../lib/ToastContext'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { formatDate, timeAgo } from '../lib/utils'
-import { KBGlyph, StatusPip, SectionHeader } from '../components/ui'
+import { KBGlyph, StatusPip, SectionHeader, Button, EmptyState } from '../components/ui'
 import { HomeSkeleton } from '../components/Skeleton'
 import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 
+const CreateKBModal = lazy(() => import('../components/CreateKBModal'))
+const AddPodcastModal = lazy(() => import('../components/AddPodcastModal'))
+
 export default function Home() {
   const navigate = useNavigate()
   const { knowledgeBases, podcasts, totalHours, loaded, loadError, refresh } = useData()
+  const { addToast } = useToast()
   const [showCreate, setShowCreate] = useState(false)
   const [showAddPodcast, setShowAddPodcast] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState([])
 
   useEffect(() => { document.title = 'Library — PodBrain' }, [])
   const [progressMap, setProgressMap] = useState({})
@@ -52,14 +59,31 @@ export default function Home() {
     refresh()
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this knowledge base and all its podcasts?')) return
-    await deleteKnowledgeBase(id)
-    refresh()
-  }
+  const requestDelete = useCallback((kb) => {
+    setDeleteTarget(kb)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+    const { id, name } = deleteTarget
+    setDeleting(true)
+    setPendingDeleteIds((ids) => [...ids, id])
+    try {
+      await deleteKnowledgeBase(id)
+      setDeleteTarget(null)
+      addToast(`Deleted "${name || 'knowledge base'}"`, 'success')
+      refresh()
+    } catch (err) {
+      console.error('Delete knowledge base failed:', err)
+      addToast(err.message || 'Failed to delete — try again', 'error')
+      setPendingDeleteIds((ids) => ids.filter((x) => x !== id))
+    } finally {
+      setDeleting(false)
+    }
+  }, [deleteTarget, addToast, refresh])
 
   async function handleAddFromIndex(episode) {
-    const { podcast, alreadyProcessed } = await addPodcastFromIndex(null, episode)
+    const { alreadyProcessed } = await addPodcastFromIndex(null, episode)
     refresh()
     return { alreadyProcessed }
   }
@@ -71,6 +95,7 @@ export default function Home() {
     ['downloading', 'transcribing', 'processing'].includes(p.status),
   )
   const recentPodcasts = podcasts.slice(0, 5)
+  const visibleKnowledgeBases = knowledgeBases.filter((kb) => !pendingDeleteIds.includes(kb.id))
 
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -122,29 +147,30 @@ export default function Home() {
           }
         />
 
-        {knowledgeBases.length === 0 ? (
-          <div
-            className="text-center py-16 mb-9 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
-          >
-            <p className="mute mb-1">No knowledge bases yet</p>
-            <p className="text-sm mute">Create one to start organizing podcasts by topic.</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
-            >
-              Create your first knowledge base
-            </button>
+        {visibleKnowledgeBases.length === 0 ? (
+          <div className="mb-9">
+            <EmptyState
+              icon={<Icons.Library size={28} />}
+              title="No knowledge bases yet"
+              subtitle="Create one to start organizing podcasts by topic."
+              action={
+                <Button variant="primary" onClick={() => setShowCreate(true)}>
+                  Create your first knowledge base
+                </Button>
+              }
+            />
           </div>
         ) : (
           <div
             className="grid gap-3.5 mb-9 grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]"
           >
-            {knowledgeBases.map((kb) => (
+            {visibleKnowledgeBases.map((kb) => (
               <KBCard
                 key={kb.id}
                 kb={kb}
                 onClick={() => navigate(`/kb/${kb.id}`)}
-                onDelete={() => handleDelete(kb.id)}
+                onDelete={() => requestDelete(kb)}
+                pending={pendingDeleteIds.includes(kb.id)}
               />
             ))}
           </div>
@@ -214,61 +240,77 @@ export default function Home() {
         )}
 
         {podcasts.length === 0 && knowledgeBases.length > 0 && (
-          <div
-            className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]"
-          >
-            <p className="mute mb-1">No podcasts yet</p>
-            <p className="text-sm mute">Search for a podcast to get started.</p>
-            <button
-              onClick={() => setShowAddPodcast(true)}
-              className="mt-4 px-4 py-2 text-sm font-semibold transition-colors bg-[var(--accent)] text-[var(--accent-fg)] rounded-[var(--r-md)]"
-            >
-              Add your first podcast
-            </button>
-          </div>
+          <EmptyState
+            icon={<Icons.Mic size={28} />}
+            title="No podcasts yet"
+            subtitle="Search for a podcast to get started."
+            action={
+              <Button variant="primary" onClick={() => setShowAddPodcast(true)}>
+                Add your first podcast
+              </Button>
+            }
+          />
         )}
       </div>
 
-      {showCreate && (
-        <CreateKBModal
-          onClose={() => setShowCreate(false)}
-          onCreate={handleCreate}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showCreate && (
+          <CreateKBModal
+            onClose={() => setShowCreate(false)}
+            onCreate={handleCreate}
+          />
+        )}
 
-      {showAddPodcast && (
-        <AddPodcastModal
-          onClose={() => setShowAddPodcast(false)}
-          onAddFromIndex={handleAddFromIndex}
-          knowledgeBaseId={null}
-        />
-      )}
+        {showAddPodcast && (
+          <AddPodcastModal
+            onClose={() => setShowAddPodcast(false)}
+            onAddFromIndex={handleAddFromIndex}
+            knowledgeBaseId={null}
+          />
+        )}
+      </Suspense>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete knowledge base?"
+        message={`"${deleteTarget?.name || 'This knowledge base'}" and all its podcast links will be removed. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null) }}
+      />
     </div>
   )
 }
 
-function KBCard({ kb, onClick, onDelete }) {
+function KBCard({ kb, onClick, onDelete, pending = false }) {
   const podcastCount = kb.knowledge_base_podcasts?.[0]?.count ?? 0
   return (
     <div
       role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
-      className="text-left flex flex-col gap-2.5 p-3.5 sm:p-[18px] transition-all group cursor-pointer bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px"
+      tabIndex={pending ? -1 : 0}
+      aria-disabled={pending || undefined}
+      aria-busy={pending || undefined}
+      onClick={() => { if (!pending) onClick() }}
+      onKeyDown={(e) => { if (!pending && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick() } }}
+      className={`text-left flex flex-col gap-2.5 p-3.5 sm:p-[18px] transition-all group bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] ${pending ? 'opacity-50 pointer-events-none cursor-default' : 'cursor-pointer hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:-translate-y-px'}`}
     >
       <div className="flex items-center gap-2.5">
         <KBGlyph name={kb.name} size={28} />
         <span className="text-[11px] mono mute">{timeAgo(kb.updated_at || kb.created_at)}</span>
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 mute hover:text-[var(--error)]"
+          disabled={pending}
+          className="ml-auto p-1 -m-1 min-w-[32px] min-h-[32px] flex items-center justify-center mute transition-opacity opacity-60 hover:opacity-100 hover:text-[var(--error)] focus-visible:opacity-100 disabled:opacity-30 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
           title="Delete"
+          aria-label={`Delete ${kb.name || 'knowledge base'}`}
         >
           <Icons.X size={12} />
         </button>
       </div>
-      <h3 className="serif text-[17px] sm:text-[19px] leading-tight tracking-tight font-medium m-0">
+      <h3 className="serif text-[17px] sm:text-[19px] leading-tight tracking-tight font-medium m-0 line-clamp-2">
         {kb.name}
       </h3>
       {kb.description && (

@@ -231,8 +231,9 @@ export default function ProfilePage() {
             Danger zone
           </div>
           <p className="text-[13px] dim mb-4 leading-relaxed">
-            Permanently delete all your data including knowledge bases, podcasts,
-            transcripts, conversations, and search history. This action cannot be undone.
+            Permanently delete your knowledge bases, conversations, and search
+            history. Episodes belong to a shared catalog and stay available to
+            other users. This action cannot be undone.
           </p>
 
           {deleteConfirm ? (
@@ -275,7 +276,7 @@ export default function ProfilePage() {
 
         {/* Error display */}
         {error && (
-          <div className="mt-4 px-3.5 py-2.5 text-[13px] bg-[color-mix(in_oklab,var(--error),transparent_85%)] text-[var(--error)] border border-[color-mix(in_oklab,var(--error),transparent_70%)] rounded-[var(--r-md)]">
+          <div role="alert" className="mt-4 px-3.5 py-2.5 text-[13px] bg-[color-mix(in_oklab,var(--error),transparent_85%)] text-[var(--error)] border border-[color-mix(in_oklab,var(--error),transparent_70%)] rounded-[var(--r-md)]">
             {error}
           </div>
         )}

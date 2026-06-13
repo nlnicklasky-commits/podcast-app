@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useData } from '../lib/DataContext'
-import { useAudio } from '../lib/AudioContext'
+import { useAudio, useAudioTime } from '../lib/AudioContext'
 import * as Icons from './Icons'
 import { KBGlyph } from './ui'
 import CommandPalette from './CommandPalette'
@@ -10,22 +10,39 @@ import MiniPlayer from './MiniPlayer'
 export default function Layout({ children }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { knowledgeBases: kbs, podcasts, totalHours, refresh } = useData()
-  const { track: activeTrack, togglePlay, seek, currentTime, duration } = useAudio()
+  const { knowledgeBases: kbs, podcasts, totalHours } = useData()
+  const { track: activeTrack, togglePlay, seek } = useAudio()
+  const { currentTime, duration } = useAudioTime()
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Live playhead read inside the keydown handler via a ref so the listener
+  // binds once and does not re-bind on every currentTime/duration tick.
+  const timeRef = useRef({ currentTime, duration })
   useEffect(() => {
+    timeRef.current = { currentTime, duration }
+  }, [currentTime, duration])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- closes mobile sidebar on route change (reset-on-navigation); refactor tracked
     setSidebarOpen(false)
   }, [location.pathname])
 
   useEffect(() => {
     function isTyping() {
-      const tag = document.activeElement?.tagName
-      return tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable
+      const el = document.activeElement
+      const tag = el?.tagName
+      return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        el?.isContentEditable ||
+        el?.getAttribute?.('contenteditable') === 'true' ||
+        el?.getAttribute?.('role') === 'textbox'
+      )
     }
 
     function onKey(e) {
+      const { currentTime, duration } = timeRef.current
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPaletteOpen((v) => !v)
@@ -51,7 +68,7 @@ export default function Layout({ children }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paletteOpen, navigate, activeTrack, togglePlay, seek, currentTime, duration])
+  }, [paletteOpen, navigate, activeTrack, togglePlay, seek])
 
   const handlePaletteClose = useCallback((action) => {
     setPaletteOpen(false)
@@ -66,6 +83,14 @@ export default function Layout({ children }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
+      {/* Skip to main content (visually hidden until focused) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-3 focus:left-3 focus:px-3 focus:py-2 focus:rounded-[var(--r-md)] focus:bg-[var(--accent)] focus:text-[var(--accent-fg)] focus:text-[13px] focus:font-medium focus:shadow-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -76,6 +101,7 @@ export default function Layout({ children }) {
 
       {/* Sidebar */}
       <aside
+        aria-label="Primary"
         className={`
           fixed md:relative z-40 md:z-auto
           w-[248px] shrink-0 flex flex-col gap-1.5
@@ -157,6 +183,7 @@ export default function Layout({ children }) {
               <button
                 key={kb.id}
                 onClick={() => navigate(`/kb/${kb.id}`)}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex items-center gap-2.5 py-[7px] px-2 text-left text-[13px] transition-colors rounded-[var(--r-md)] border min-h-[44px] md:min-h-0 hover:bg-[var(--surface)] ${
                   isActive
                     ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'
@@ -201,7 +228,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
+      <main id="main-content" className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
         {/* Mobile header */}
         <div
           className="flex md:hidden items-center gap-3 px-4 py-3 shrink-0 border-b border-[var(--border)] bg-[var(--bg)]"
@@ -245,6 +272,7 @@ function NavItem({ icon, label, hint, count, active, onClick }) {
   return (
     <button
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`flex items-center gap-2.5 py-[7px] md:py-[7px] min-h-[44px] md:min-h-0 px-2.5 text-[13px] text-left transition-colors rounded-[var(--r-md)] border hover:bg-[var(--surface)] ${
         active
           ? 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)]'

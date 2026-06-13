@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+import { callEdgeFunction } from './_edge'
 
 /**
  * Send a chat message to the RAG pipeline
@@ -9,38 +8,15 @@ export async function sendMessage(knowledgeBaseId, question, conversationId = nu
   if (!knowledgeBaseId) throw new Error('Chat request failed: knowledge base ID is required')
   if (!question || !question.trim()) throw new Error('Chat request failed: question is required')
 
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY
-
-  let response
-  try {
-    response = await fetch(
-      `${SUPABASE_URL}/functions/v1/chat`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          knowledge_base_id: knowledgeBaseId,
-          question: question.trim(),
-          conversation_id: conversationId,
-        }),
-      },
-    )
-  } catch (networkError) {
-    throw new Error(`Chat request failed: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(
-      err.error || `Chat request failed: edge function returned HTTP ${response.status}`
-    )
-  }
-
-  return response.json()
+  return callEdgeFunction(
+    'chat',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      question: question.trim(),
+      conversation_id: conversationId,
+    },
+    { errorPrefix: 'Chat request failed' },
+  )
 }
 
 /**

@@ -1,16 +1,15 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { getInsights, getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
+import { getTranscript, processPodcast, getPodcastStatus, cancelProcessing, getProcessingLogs } from '../services/processing'
 import { getPodcastKBs } from '../services/podcasts'
-import { useAuth } from '../lib/useAuth'
 import { useToast } from '../lib/ToastContext'
-import { useAudio } from '../lib/AudioContext'
+import { useAudio, useAudioTime } from '../lib/AudioContext'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
 import ProcessingProgress from '../components/ProcessingProgress'
 import ProcessingLog from '../components/ProcessingLog'
-import { StatusPip, Tag } from '../components/ui'
+import { StatusPip, Tag, Button, EmptyState } from '../components/ui'
 import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 import { formatDate, formatDuration, formatTimestamp } from '../lib/utils'
@@ -26,88 +25,146 @@ export default function PodcastDetail() {
   const timestampParam = searchParams.get('t')
   const [podcast, setPodcast] = useState(null)
   const [transcript, setTranscript] = useState(null)
+  const [transcriptLoaded, setTranscriptLoaded] = useState(false)
   const [linkedKBs, setLinkedKBs] = useState([])
   const [activeTab, setActiveTab] = useState('insights')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [showAddToKB, setShowAddToKB] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
   const [showAudioConfirm, setShowAudioConfirm] = useState(false)
 
-  const { user } = useAuth()
-  const { track: activeTrack, isPlaying, currentTime, speed, play: globalPlay, togglePlay, cycleSpeed } = useAudio()
+  const { track: activeTrack, isPlaying, speed, play: globalPlay, togglePlay, cycleSpeed } = useAudio()
+  const { currentTime } = useAudioTime()
   const isCurrentTrack = activeTrack?.podcastId === podcastId
+
+  // Poller bookkeeping that must survive across effect runs.
   const pollIntervalRef = useRef(null)
+  const pollStartRef = useRef(0)
+  const pollErrorsRef = useRef(0)
+  // Latest transcriptLoaded for the poller to read without re-subscribing.
+  const transcriptLoadedRef = useRef(false)
+  transcriptLoadedRef.current = transcriptLoaded
 
-  useEffect(() => {
-    document.title = podcast ? `${podcast.title || 'Podcast'} — PodBrain` : 'PodBrain'
-  }, [podcast?.title])
+  const tabRefs = useRef([])
 
+  const docTitle = podcast ? `${podcast.title || 'Podcast'} — PodBrain` : 'PodBrain'
   useEffect(() => {
-    async function load() {
-      if (!UUID_RE.test(podcastId) || (kbId && !UUID_RE.test(kbId))) {
-        setLoading(false)
+    document.title = docTitle
+  }, [docTitle])
+
+  const load = useCallback(async () => {
+    if (!UUID_RE.test(podcastId) || (kbId && !UUID_RE.test(kbId))) {
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setLoadError(false)
+    try {
+      const [{ data: pod }, kbs, logs] = await Promise.all([
+        supabase.from('podcasts').select('*').eq('id', podcastId).limit(1),
+        getPodcastKBs(podcastId),
+        getProcessingLogs(podcastId),
+      ])
+      if (logs && logs.length > 0) {
+        setProcessingStartedAt(logs[0].created_at)
+        const lastLog = logs[logs.length - 1]
+        if (['ready', 'error', 'cancelled'].includes(lastLog.step)) {
+          setProcessingFinishedAt(lastLog.created_at)
+        }
+      }
+      if (!pod?.[0]) {
+        // Confirmed not-found — redirect.
+        navigate(kbId ? `/kb/${kbId}` : '/')
         return
       }
-      try {
-        const [{ data: pod }, trans, kbs, logs] = await Promise.all([
-          supabase.from('podcasts').select('*').eq('id', podcastId).limit(1),
-          getTranscript(podcastId),
-          getPodcastKBs(podcastId),
-          getProcessingLogs(podcastId),
-        ])
-        if (logs && logs.length > 0) {
-          setProcessingStartedAt(logs[0].created_at)
-          const lastLog = logs[logs.length - 1]
-          if (['ready', 'error', 'cancelled'].includes(lastLog.step)) {
-            setProcessingFinishedAt(lastLog.created_at)
-          }
-        }
-        if (!pod?.[0]) {
-          navigate(kbId ? `/kb/${kbId}` : '/')
-          return
-        }
-        setPodcast(pod[0])
-        setTranscript(trans)
-        setLinkedKBs(kbs)
-      } catch (err) {
-        console.error(err)
-        navigate(kbId ? `/kb/${kbId}` : '/')
-      } finally {
-        setLoading(false)
-      }
+      setPodcast(pod[0])
+      setLinkedKBs(kbs)
+    } catch (err) {
+      console.error(err)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [podcastId, kbId, navigate])
 
   useEffect(() => {
-    if (!podcast) return
-    const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
-    if (!isActive && !processing) return
+    load()
+  }, [load])
 
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+  // Reset transcript state when navigating to a different podcast so the
+  // previous episode's transcript isn't shown while the new one lazy-loads.
+  useEffect(() => {
+    setTranscript(null)
+    setTranscriptLoaded(false)
+  }, [podcastId])
 
-    const pollStart = Date.now()
+  // Lazy-load the transcript only when the Transcript tab is first activated.
+  useEffect(() => {
+    if (activeTab !== 'transcript' || transcriptLoaded) return
+    let cancelled = false
+    getTranscript(podcastId)
+      .then((trans) => {
+        if (cancelled) return
+        setTranscript(trans)
+        setTranscriptLoaded(true)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setTranscriptLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, transcriptLoaded, podcastId])
+
+  // Status poller. Keyed only on podcastId + whether processing is active, so
+  // a mid-flight status change (downloading -> transcribing -> processing) does
+  // NOT tear down and recreate the interval. The 15-min budget and the
+  // consecutive-error count live in refs that survive across effect runs.
+  const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast?.status)
+  const pollerOn = isActive || processing
+
+  useEffect(() => {
+    if (!pollerOn) return
+
+    // Start (or restart, after a remount) the budget and error counters once.
+    if (!pollIntervalRef.current) {
+      pollStartRef.current = Date.now()
+      pollErrorsRef.current = 0
+    }
+
     const MAX_POLL_MS = 15 * 60 * 1000
-    let consecutiveErrors = 0
 
-    pollIntervalRef.current = setInterval(async () => {
-      if (Date.now() - pollStart > MAX_POLL_MS) {
+    function stopPoll() {
+      if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
         pollIntervalRef.current = null
+      }
+    }
+
+    // Guard against a double-interval if the effect re-runs while one is live.
+    if (pollIntervalRef.current) return stopPoll
+
+    pollIntervalRef.current = setInterval(async () => {
+      if (Date.now() - pollStartRef.current > MAX_POLL_MS) {
+        stopPoll()
         addToast('Processing is taking longer than expected — check back later', 'info')
         return
       }
 
       try {
         const result = await getPodcastStatus(podcastId)
-        consecutiveErrors = 0
+        pollErrorsRef.current = 0
         if (result) {
           setPodcast((prev) => ({ ...prev, status: result.status, error_message: result.error_message, progress: result.progress }))
           if (result.status === 'ready' || result.status === 'error') {
             const [trans, logs] = await Promise.all([
-              result.status === 'ready' ? getTranscript(podcastId) : Promise.resolve(null),
+              result.status === 'ready' && transcriptLoadedRef.current ? getTranscript(podcastId) : Promise.resolve(null),
               getProcessingLogs(podcastId),
             ])
             if (trans) setTranscript(trans)
@@ -116,25 +173,20 @@ export default function PodcastDetail() {
               setProcessingFinishedAt(logs[logs.length - 1].created_at)
             }
             setProcessing(false)
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
+            stopPoll()
           }
         }
       } catch {
-        consecutiveErrors++
-        if (consecutiveErrors >= 5) {
-          clearInterval(pollIntervalRef.current)
-          pollIntervalRef.current = null
+        pollErrorsRef.current++
+        if (pollErrorsRef.current >= 5) {
+          stopPoll()
           addToast('Lost connection — refresh to check status', 'error')
         }
       }
     }, 2000)
 
-    return () => {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-  }, [podcast?.status, processing, podcastId, addToast])
+    return stopPoll
+  }, [pollerOn, podcastId, addToast])
 
   function handleProcess() {
     if (processing) return
@@ -176,6 +228,29 @@ export default function PodcastDetail() {
   if (loading) {
     return <PodcastDetailSkeleton />
   }
+  if (loadError) {
+    return (
+      <div className="px-6 sm:px-8 py-10 max-w-[820px] mx-auto">
+        <EmptyState
+          icon={<Icons.X size={28} />}
+          title="Couldn't load this podcast"
+          subtitle="Something went wrong fetching the details. Check your connection and try again."
+          action={
+            <div className="flex items-center gap-2">
+              <Button variant="primary" size="sm" onClick={load}>
+                Retry
+              </Button>
+              <Link to={kbId ? `/kb/${kbId}` : '/'}>
+                <Button variant="secondary" size="sm">
+                  {kbId ? 'Back to Knowledge Base' : 'All Podcasts'}
+                </Button>
+              </Link>
+            </div>
+          }
+        />
+      </div>
+    )
+  }
   if (!podcast) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3">
@@ -185,7 +260,6 @@ export default function PodcastDetail() {
     )
   }
 
-  const isActive = ['downloading', 'transcribing', 'processing'].includes(podcast.status)
   const canProcess = podcast.status === 'pending' || podcast.status === 'error'
 
   const tabs = [
@@ -194,8 +268,26 @@ export default function PodcastDetail() {
     { id: 'processing', label: 'Processing', icon: <Icons.Clock size={12} /> },
   ]
 
+  function handleTabKeyDown(e, index) {
+    let next = index
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      next = (index + 1) % tabs.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      next = (index - 1 + tabs.length) % tabs.length
+    } else if (e.key === 'Home') {
+      next = 0
+    } else if (e.key === 'End') {
+      next = tabs.length - 1
+    } else {
+      return
+    }
+    e.preventDefault()
+    setActiveTab(tabs[next].id)
+    tabRefs.current[next]?.focus()
+  }
+
   return (
-    <div className="h-full overflow-y-auto">
+    <div className={`h-full overflow-y-auto ${activeTrack ? 'pb-[72px]' : ''}`}>
       <div className="px-6 sm:px-8 py-6 pb-20 max-w-[820px] mx-auto">
         {/* Breadcrumb */}
         <Link
@@ -377,21 +469,38 @@ export default function PodcastDetail() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-[22px] border-b border-[var(--border)]">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors border-b-2 ${activeTab === t.id ? 'text-[var(--text)] border-[var(--accent)] font-medium' : 'text-[var(--text-mute)] border-transparent font-normal'}`}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+        <div role="tablist" aria-label="Podcast detail sections" className="flex gap-1 mb-[22px] border-b border-[var(--border)]">
+          {tabs.map((t, i) => {
+            const selected = activeTab === t.id
+            return (
+              <button
+                key={t.id}
+                id={`tab-${t.id}`}
+                role="tab"
+                ref={(el) => { tabRefs.current[i] = el }}
+                aria-selected={selected}
+                aria-controls={`tabpanel-${t.id}`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => setActiveTab(t.id)}
+                onKeyDown={(e) => handleTabKeyDown(e, i)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors border-b-2 ${selected ? 'text-[var(--text)] border-[var(--accent)] font-medium' : 'text-[var(--text-mute)] border-transparent font-normal'}`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Tab content */}
-        <div key={activeTab} className="fade-in">
+        <div
+          key={activeTab}
+          role="tabpanel"
+          id={`tabpanel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+          tabIndex={0}
+          className="fade-in"
+        >
           {activeTab === 'insights' && (
             <InsightsPanel podcastId={podcastId} podcastTitle={podcast.title} podcast={podcast} />
           )}
@@ -399,6 +508,7 @@ export default function PodcastDetail() {
           {activeTab === 'transcript' && (
             <TranscriptView
               transcript={transcript}
+              loading={!transcriptLoaded}
               highlightTime={timestampParam ? parseFloat(timestampParam) : null}
               onSeek={(time) => {
                 globalPlay({
@@ -431,7 +541,7 @@ export default function PodcastDetail() {
   )
 }
 
-function TranscriptView({ transcript, highlightTime, onSeek }) {
+function TranscriptView({ transcript, loading, highlightTime, onSeek }) {
   const [, setSearchParams] = useSearchParams()
   const highlightRef = useRef(null)
   const hasScrolled = useRef(false)
@@ -445,6 +555,14 @@ function TranscriptView({ transcript, highlightTime, onSeek }) {
       }, 100)
     }
   }, [highlightTime])
+
+  if (loading) {
+    return (
+      <div className="text-center py-12 mute" aria-live="polite">
+        Loading transcript…
+      </div>
+    )
+  }
 
   if (!transcript) {
     return (

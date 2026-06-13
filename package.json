@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "node tests/run-home-kb.cjs && node tests/run-search-discover.cjs && node tests/run-podcast-flow.cjs && node tests/run-detail-features.cjs && node tests/run-detail-features-ready.cjs"
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.9",

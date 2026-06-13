@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { requireUserId } from './_auth'
 
 export async function listSubscriptions() {
   const { data, error } = await supabase
@@ -13,6 +14,8 @@ export async function listSubscriptions() {
 export async function subscribe(show) {
   if (!show || !show.id) throw new Error('Failed to subscribe: show data is required')
 
+  const user_id = await requireUserId()
+
   const { data, error } = await supabase
     .from('feed_subscriptions')
     .insert({
@@ -21,6 +24,7 @@ export async function subscribe(show) {
       feed_title: show.title,
       feed_artwork: show.artwork,
       feed_author: show.author,
+      user_id,
     })
     .select()
     .limit(1)

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as Icons from './Icons'
 
 const STEPS = [
@@ -15,49 +15,58 @@ const STATUS_INDEX = {
   processing: 2,
   ready: 3,
   error: -2,
+  cancelled: -2,
 }
 
 const STATUS_MESSAGES = {
   pending: 'Waiting to start...',
   downloading: 'Downloading audio...',
-  transcribing: 'Transcribing with OpenAI Whisper...',
+  transcribing: 'Transcribing with Whisper...',
   processing: 'Generating embeddings & insights...',
   ready: 'All done!',
   error: 'Something went wrong',
-  cancelled: 'Cancelling...',
+  cancelled: 'Processing cancelled',
 }
 
 function useElapsedTimer(isRunning, startedAt, finishedAt) {
   const [elapsed, setElapsed] = useState(0)
+  // Stable start anchor (ms). Once running, it is locked in so the displayed
+  // elapsed never jumps when the optimistic start is replaced by the DB value.
+  const anchorRef = useRef(null)
+
+  const startMs = startedAt ? new Date(startedAt).getTime() : null
 
   useEffect(() => {
-    if (startedAt && finishedAt) {
-      const start = new Date(startedAt).getTime()
+    // Finished: show the exact span and stop. (DB start required to be accurate.)
+    if (startMs && finishedAt) {
       const end = new Date(finishedAt).getTime()
-      setElapsed(Math.max(0, Math.floor((end - start) / 1000)))
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot elapsed computation for finished state; refactor tracked
+      setElapsed(Math.max(0, Math.floor((end - startMs) / 1000)))
       return
     }
 
-    if (isRunning && startedAt) {
-      const start = new Date(startedAt).getTime()
-      setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
-      const interval = setInterval(() => {
-        setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
-      }, 1000)
-      return () => clearInterval(interval)
-    }
-
-    if (isRunning) {
-      const start = Date.now()
+    if (!isRunning) {
+      anchorRef.current = null
       setElapsed(0)
-      const interval = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - start) / 1000))
-      }, 1000)
-      return () => clearInterval(interval)
+      return
     }
 
-    setElapsed(0)
-  }, [isRunning, startedAt, finishedAt])
+    // Running: pick the earliest known start so the counter is monotonic.
+    // - First run with no DB time yet: anchor to now (optimistic).
+    // - DB time arrives later: adopt it only if it is earlier, so elapsed
+    //   never snaps backward and the optimistic count stays smooth.
+    const candidate = startMs ?? Date.now()
+    if (anchorRef.current == null || candidate < anchorRef.current) {
+      anchorRef.current = candidate
+    }
+    const start = anchorRef.current
+
+    setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
+    const interval = setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000)))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isRunning, startMs, finishedAt])
 
   return elapsed
 }
@@ -70,7 +79,8 @@ function formatElapsed(seconds) {
 
 export default function ProcessingProgress({ status = 'pending', compact = false, progress = 0, startedAt, finishedAt }) {
   const currentIdx = STATUS_INDEX[status] ?? -1
-  const isError = status === 'error'
+  const isCancelled = status === 'cancelled'
+  const isError = status === 'error' || isCancelled
   const isActive = !isError && status !== 'pending' && status !== 'ready'
   const isDone = status === 'ready'
 

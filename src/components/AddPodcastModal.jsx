@@ -3,6 +3,7 @@ import { searchShows, getEpisodes, getAllEpisodes } from '../services/podcastInd
 import { bulkAddEpisodesFromIndex } from '../services/podcasts'
 import { formatDuration } from '../lib/utils'
 import { useData } from '../lib/DataContext'
+import { useToast } from '../lib/ToastContext'
 import useFocusTrap from '../hooks/useFocusTrap'
 import useScrollLock from '../hooks/useScrollLock'
 import SubscribeButton from './SubscribeButton'
@@ -10,6 +11,7 @@ import * as Icons from './Icons'
 
 export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBaseId = null, initialShow = null }) {
   const { refresh } = useData()
+  const { addToast } = useToast()
   const [step, setStep] = useState(initialShow ? 'episodes' : 'shows')
   const [query, setQuery] = useState('')
   const [shows, setShows] = useState([])
@@ -19,23 +21,65 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
   const [loadingEpisodes, setLoadingEpisodes] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
   const searchTimeout = useRef(null)
   const trapRef = useFocusTrap()
+  const bulkMenuRef = useRef(null)
   useScrollLock()
 
   // Cleanup search timeout on unmount (P1-4 fix)
   useEffect(() => () => clearTimeout(searchTimeout.current), [])
+
+  const handleSelectShow = useCallback(async (show) => {
+    setSelectedShow(show)
+    setStep('episodes')
+    setLoadingEpisodes(true)
+    setError('')
+    try {
+      const { episodes: eps } = await getEpisodes(show.id, show.feedUrl)
+      setEpisodes(eps)
+    } catch (err) {
+      setError(err.message || 'Failed to load episodes')
+      setEpisodes([])
+    } finally {
+      setLoadingEpisodes(false)
+    }
+  }, [])
 
   // Load episodes immediately when initialShow is provided (P0-1 fix)
   useEffect(() => {
     if (initialShow) {
       handleSelectShow(initialShow)
     }
-  }, [])
+  }, [initialShow, handleSelectShow])
 
-  const [bulkAdding, setBulkAdding] = useState(false)
-  const [bulkProgress, setBulkProgress] = useState(null)
-  const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
+  // Close on Escape
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== 'Escape') return
+      if (bulkMenuOpen) {
+        setBulkMenuOpen(false)
+        return
+      }
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [bulkMenuOpen, onClose])
+
+  // Close the Recent menu on outside click
+  useEffect(() => {
+    if (!bulkMenuOpen) return
+    function onPointerDown(e) {
+      if (bulkMenuRef.current && !bulkMenuRef.current.contains(e.target)) {
+        setBulkMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [bulkMenuOpen])
 
   const handleSearch = useCallback(async (q) => {
     if (!q.trim() || q.trim().length < 2) {
@@ -63,22 +107,6 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     searchTimeout.current = setTimeout(() => handleSearch(val), 500)
   }
 
-  async function handleSelectShow(show) {
-    setSelectedShow(show)
-    setStep('episodes')
-    setLoadingEpisodes(true)
-    setError('')
-    try {
-      const { episodes: eps } = await getEpisodes(show.id, show.feedUrl)
-      setEpisodes(eps)
-    } catch (err) {
-      setError(err.message || 'Failed to load episodes')
-      setEpisodes([])
-    } finally {
-      setLoadingEpisodes(false)
-    }
-  }
-
   function handleBackToShows() {
     setStep('shows')
     setSelectedShow(null)
@@ -99,6 +127,10 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
       }
       const result = await onAddFromIndex(enrichedEpisode)
       if (result?.alreadyProcessed) setError('')
+      addToast(
+        result?.alreadyProcessed ? 'Episode already in your library' : 'Episode added to your library',
+        'success',
+      )
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to add episode')
@@ -220,7 +252,6 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
     return str.length > len ? str.slice(0, len) + '...' : str
   }
 
-  const transcriptCount = episodes.filter(ep => ep.transcripts?.length > 0 || ep.transcriptUrl).length
 
   const bulkOptions = [
     { label: 'Recent 10', count: 10 },
@@ -237,6 +268,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
         ref={trapRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="add-podcast-title"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-xl max-h-[92vh] sm:max-h-[85vh] flex flex-col fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[12px_12px_var(--r-lg)_var(--r-lg)]"
       >
@@ -250,7 +282,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                 <Icons.Back size={16} />
               </button>
             )}
-            <h3 className="m-0 text-[15px] font-medium truncate">
+            <h3 id="add-podcast-title" className="m-0 text-[15px] font-medium truncate">
               {step === 'episodes' ? decodeHtml(selectedShow?.title) : 'Add Podcast'}
             </h3>
           </div>
@@ -265,11 +297,15 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
             {step === 'shows' && (
               <>
                 <div className="shrink-0 mb-3">
+                  <label htmlFor="add-podcast-search" className="sr-only">
+                    Search for a podcast
+                  </label>
                   <div
                     className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--accent)] rounded-[var(--r-md)] transition-colors"
                   >
                     <Icons.Search size={14} className="mute shrink-0" />
                     <input
+                      id="add-podcast-search"
                       type="text"
                       value={query}
                       onChange={onQueryChange}
@@ -452,19 +488,22 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
                           All Transcript
                         </button>
                         {bulkOptions.length > 0 && (
-                          <div className="relative">
+                          <div className="relative" ref={bulkMenuRef}>
                             <button
                               onClick={() => setBulkMenuOpen(!bulkMenuOpen)}
+                              aria-haspopup="menu"
+                              aria-expanded={bulkMenuOpen}
                               className="flex items-center justify-center px-3 py-2 text-[12px] font-medium transition-colors bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-sm)] min-h-[36px]"
                             >
                               Recent
                               <Icons.Arrow size={10} className="ml-1.5 rotate-90" />
                             </button>
                             {bulkMenuOpen && (
-                              <div className="absolute bottom-full right-0 mb-1 py-1 min-w-[120px] bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] shadow-lg z-10">
+                              <div role="menu" className="absolute bottom-full right-0 mb-1 py-1 min-w-[120px] bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] shadow-lg z-10">
                                 {bulkOptions.map(opt => (
                                   <button
                                     key={opt.count}
+                                    role="menuitem"
                                     onClick={() => handleBulkAdd(opt.count)}
                                     className="w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--surface)]"
                                   >

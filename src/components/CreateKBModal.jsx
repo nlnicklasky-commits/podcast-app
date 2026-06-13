@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useFocusTrap from '../hooks/useFocusTrap'
 import useScrollLock from '../hooks/useScrollLock'
 import * as Icons from './Icons'
@@ -10,6 +10,12 @@ export default function CreateKBModal({ onClose, onCreate }) {
   const [error, setError] = useState(null)
   const trapRef = useFocusTrap()
   useScrollLock()
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -34,13 +40,14 @@ export default function CreateKBModal({ onClose, onCreate }) {
         ref={trapRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="create-kb-title"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)]"
       >
         <div
           className="flex items-center px-[18px] py-3.5 border-b border-[var(--border)]"
         >
-          <h3 className="m-0 text-[15px] font-medium">New Knowledge Base</h3>
+          <h3 id="create-kb-title" className="m-0 text-[15px] font-medium">New Knowledge Base</h3>
           <button onClick={onClose} className="ml-auto mute" aria-label="Close">
             <Icons.X size={16} />
           </button>
@@ -48,8 +55,9 @@ export default function CreateKBModal({ onClose, onCreate }) {
 
         <form onSubmit={handleSubmit} className="p-[18px] space-y-4">
           <div>
-            <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">Name</label>
+            <label htmlFor="create-kb-name" className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">Name</label>
             <input
+              id="create-kb-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -59,10 +67,11 @@ export default function CreateKBModal({ onClose, onCreate }) {
             />
           </div>
           <div>
-            <label className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">
+            <label htmlFor="create-kb-description" className="block text-[11px] mono mute uppercase tracking-[0.1em] mb-1.5">
               Description (optional)
             </label>
             <textarea
+              id="create-kb-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What topics does this cover?"

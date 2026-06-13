@@ -110,6 +110,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
         ref={trapRef}
         role="dialog"
         aria-modal="true"
+        aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
         className="w-[600px] max-w-[92vw] overflow-hidden fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
       >
@@ -252,6 +253,7 @@ export default function CommandPalette({ open, onClose, knowledgeBases = [], pod
                       }}
                       className="shrink-0 p-2 mr-2 mute hover:text-[var(--accent)] transition-colors rounded-[var(--r-sm)] hover:bg-[var(--bg)]"
                       title="Play"
+                      aria-label="Play"
                     >
                       <Icons.Play size={12} />
                     </button>

@@ -172,8 +172,9 @@ podcast-app/
 - `id` (uuid, PK)
 - `user_id` (uuid, FK → auth.users, CASCADE delete)
 - `podcast_id` (uuid, FK → podcasts, CASCADE delete)
-- `current_time` (float)
-- `duration` (float)
+- `position_seconds` (double precision, NOT NULL)
+- `duration_seconds` (double precision, nullable)
+- `playback_speed` (double precision, nullable)
 - `completed` (boolean, default false)
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
@@ -184,10 +185,40 @@ podcast-app/
 - `feed_id` (bigint) — Podcast Index feed ID
 - `feed_url` (text)
 - `feed_title` (text)
+- `feed_artwork` (text)
+- `feed_author` (text)
 - `auto_process` (boolean, default false)
-- `active` (boolean, default true)
+- `is_active` (boolean, default true)
 - `created_at` (timestamptz)
 - `updated_at` (timestamptz)
+
+## Security Model
+
+### Ownership Classes
+
+Tables fall into three ownership classes that determine how they are gated:
+
+- **USER-OWNED** - `knowledge_bases`, `conversations`, `search_history`, `playback_progress`, `feed_subscriptions`. Gated by RLS `auth.uid() = user_id`. Each row belongs to exactly one user.
+- **KB / PARENT-SCOPED** - `knowledge_base_podcasts`, `messages`, `kb_syntheses`. No direct `user_id`; gated by an EXISTS-join to an owned parent (e.g. a message is visible only if its conversation is owned by the caller).
+- **SHARED CATALOG** - `podcasts`, `transcripts`, `chunks`, `insights`, `processing_logs`. No `user_id`. Readable by any authenticated user, written only by service-role edge functions. Keeping these shared (not per-user) preserves episode deduplication - one transcribed episode is reused across every KB and user that references it.
+
+### Edge Functions and Authorization
+
+Edge functions run with the service-role key (which bypasses RLS), so they must enforce ownership themselves. The shared helper `supabase/functions/_shared/auth.ts` exports `resolveCaller(req) -> { userId, isService }`:
+
+- Service-role callers (internal/cron) get `{ userId: null, isService: true }`.
+- A valid end-user JWT resolves to `{ userId, isService: false }` and the function scopes all queries to that user.
+- Missing/invalid token gets `{ userId: null, isService: false }` (denied).
+
+Gateway-level `verify_jwt` (see `supabase/config.toml`):
+
+- **`true`** for `chat`, `semantic-search`, `synthesize-kb`, and the catalog/lookup functions (`podcast-search`, `podcast-episodes`, `podcast-discover`, `resolve-feeds`, `youtube-search`) - anonymous callers are rejected before the function runs.
+- **`false`** for `process-podcast` (dual service/user path - self-enforces in-handler) and `poll-subscriptions` (cron; gated by `CRON_SECRET`).
+
+### Security Migrations
+
+- **`013_security_phase1_hardening.sql`** - APPLIED to prod. Safe while the app is still anonymous: adds the missing `user_id` ownership columns (nullable), creates `feed_subscriptions`, fixes/creates the `delete_*` RPCs, pins `search_path` on flagged functions, revokes anon `EXECUTE` on the delete RPCs, and drops the anon storage policies on the private `podcast-audio` bucket. Does NOT enable RLS or revoke anon table grants.
+- **`014_security_phase2_lockdown.sql`** - PENDING (point of no return). Backfills all pre-auth rows to the owner account, ENABLEs RLS with policies, and revokes the blanket anon grants (re-granting `authenticated`). Apply ONLY after the owner has signed up AND the JWT-aware frontend is deployed - applying it earlier returns zero rows for every query and bricks the app.
 
 ## Development Phases
 
@@ -220,11 +251,11 @@ podcast-app/
 - [x] Episode deduplication via `episode_index_id`
 - [x] YouTube URL paste retained as fallback
 
-### Phase 3 — Embeddings & Search ✅ (embeddings) / 🔲 (search UI)
+### Phase 3 - Embeddings & Search (done)
 - [x] Generate embeddings via OpenAI text-embedding-3-small
 - [x] Store in pgvector column on chunks table
-- [ ] Semantic search within a knowledge base
-- [ ] Search UI with results showing podcast source + timestamp
+- [x] Semantic search within a knowledge base (semantic-search edge fn + services/search.js)
+- [x] Search UI with results showing podcast source + timestamp (SearchPage.jsx, SemanticSearchResult.jsx)
 
 ### Phase 4 — AI Insights ✅
 - [x] GPT-4o-mini integration for summarization (via Edge Function)
@@ -239,9 +270,9 @@ podcast-app/
 - [x] Chat UI component
 
 ### Phase 6 — Polish & Productize (Later)
-- [ ] Supabase Auth integration + RLS policies
-- [ ] Responsive design / mobile support
-- [ ] Export insights (markdown, PDF)
+- [~] Supabase Auth integration + RLS policies - IN PROGRESS: Phase 1 DB hardening applied (migration 013); RLS lockdown (migration 014) pending owner signup + new-frontend deploy
+- [x] Responsive design / mobile support (mobile nav, bottom-sheet modals, 44px touch targets)
+- [~] Export insights - [x] markdown (src/lib/export.js); [ ] PDF still open
 - [x] Vercel deployment (auto-deploy on push to GitHub)
 - [ ] Usage limits / billing if multi-user
 
@@ -295,7 +326,7 @@ Everything runs in the cloud — no local tools needed. Click "Process" in the U
 
 The entire pipeline runs in a single Supabase Edge Function:
 
-1. **Download audio** — For Podcast Index episodes: downloads directly from RSS `enclosure_url`. For YouTube: calls Cobalt API (Railway) to get audio. (0-15%)
+1. **Download audio** - Downloads directly from the RSS `enclosure_url`. The function has NO Cobalt/YouTube code path; a podcast without an `enclosure_url` errors out ("Only podcasts with RSS enclosure URLs are supported"). (0-15%)
 2. **Upload to Storage** — Uploads audio to Supabase Storage `podcast-audio` bucket as backup (15-30%)
 3. **Transcribe** — Sends audio to Groq Whisper (whisper-large-v3), stores transcript with timestamped segments (30-55%)
 4. **Chunk** — Splits transcript into chunks (~500 tokens, sentence boundary respect) (55-60%)
@@ -311,14 +342,14 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 
 | Function | Version | Purpose |
 |----------|---------|---------|
-| `process-podcast` | v14 | Full processing pipeline (download → transcribe → embed → insights) |
-| `chat` | v5 | RAG chat — vector search + Groq Llama 3.3 70B response with citations |
+| `process-podcast` | v14 | Full processing pipeline (download -> transcribe -> embed -> insights). `verify_jwt=false`; self-enforces ownership in-handler via `resolveCaller`. |
+| `chat` | v5 | RAG chat - vector search + Groq Llama 3.3 70B response with citations. Verifies JWT, enforces per-user ownership. |
 | `podcast-search` | v2 | Search Podcast Index API for shows by term |
 | `podcast-episodes` | v2 | Get episodes for a Podcast Index feed by feed ID |
-| `youtube-search` | v4 | YouTube search via InnerTube API (kept as fallback, not used in primary UI) |
-| `synthesize-kb` | v1 | KB-level cross-podcast synthesis — themes, agreements, disagreements via GPT-4o-mini |
-| `semantic-search` | v1 | Vector similarity search across chunks within a KB or globally |
-| `poll-subscriptions` | v1 | Check feed subscriptions for new episodes and trigger processing |
+| `youtube-search` | v4 | YouTube search via InnerTube API. DEPLOYED-ONLY - no source in this repo. Legacy fallback, not used in primary UI. |
+| `synthesize-kb` | v1 | KB-level cross-podcast synthesis - themes, agreements, disagreements via GPT-4o-mini. Verifies JWT, enforces per-user ownership. |
+| `semantic-search` | v1 | Vector similarity search across chunks within a KB or globally. Verifies JWT, enforces per-user ownership. |
+| `poll-subscriptions` | v1 | Check feed subscriptions for new episodes and trigger processing. `verify_jwt=false`; cron, gated by `CRON_SECRET`, self-enforces in-handler. |
 | `resolve-feeds` | v1 | Resolve RSS feed URLs and extract feed metadata |
 | `podcast-discover` | v1 | Discover trending/recommended podcasts via Podcast Index |
 
@@ -329,14 +360,14 @@ Each step writes to the `processing_logs` table for real-time visibility. The fu
 - **Endpoints used**: `/search/byterm` (show search), `/episodes/byfeedid` (episode listing)
 - **Why**: Free, open podcast directory. RSS `enclosureUrl` fields provide direct public MP3 URLs — legally clean, no scraping.
 
-### Cobalt (Railway) — YouTube Fallback Only
+### Cobalt (Railway) - Legacy / Not In Current Pipeline
 
+- **Status**: LEGACY. The current `process-podcast` function has no Cobalt/YouTube code - it downloads only from the RSS `enclosure_url`. The Railway service may still be running, but this code path was removed from the pipeline. Connection details are retained below for reference only.
 - **Service**: Cobalt v11 (`ghcr.io/imputnet/cobalt:11`)
 - **Companion**: yt-session-generator (`ghcr.io/imputnet/yt-session-generator:webserver`)
 - **Railway project**: `stellar-love` (id: 62063223-f85f-44ab-9ff6-f4bbc5402337)
 - **Public URL**: `https://cobalt-production-8df9.up.railway.app`
 - **API**: `POST /` with `{"url": "...", "downloadMode": "audio", "audioFormat": "mp3"}`
-- **Note**: Only used when processing YouTube URLs (no `enclosure_url` on podcast record). Podcast Index episodes bypass Cobalt entirely.
 
 ### Supabase Storage
 
@@ -377,14 +408,22 @@ All secrets live in `.env` or `.env.local` at project root (gitignored). NEVER h
 
 ## Conventions
 
-- TypeScript everywhere, no `any` types
+- **Frontend is JavaScript (JSX)** - functional components with hooks. No TypeScript, no `prop-types`. Service-layer functions are JSDoc-typed.
+- **Edge functions are TypeScript (Deno)** - the `supabase/functions/**` code is TS.
 - Functional React components with hooks only — no class components, no Redux
 - TailwindCSS for all styling — no CSS modules, no styled-components
 - Prettier + ESLint for formatting (auto-run via hooks)
 - Use `npm install --legacy-peer-deps` if peer dependency conflicts arise
 - Supabase queries: use `.limit(1)` instead of `.single()` to avoid errors on empty results
 - All generated images in SVG format when possible
-- Use `'use client'` only for interactive React components
+
+### Shared Frontend Helpers
+
+- `src/services/_auth.js` - `requireUserId()`, `getAccessToken()`
+- `src/services/_edge.js` - `callEdgeFunction(name, body, opts)` (forwards the JWT to edge functions)
+- `src/components/ui.jsx` - exports `Button` and `EmptyState` (plus `StatusPip`, `KBGlyph`, `SectionHeader`, `Tag`)
+- `src/components/ConfirmDialog.jsx` - reusable confirm dialog
+- `src/lib/AudioContext.jsx` - `useAudioTime()` for the live playhead
 
 ## Working with Nick
 
@@ -408,3 +447,8 @@ All secrets live in `.env` or `.env.local` at project root (gitignored). NEVER h
 - **Vercel project**: `podcast-app` (id: prj_WVKbPtlULb2KExWtJujJspTjibEG)
 - **Railway project**: `stellar-love` — Cobalt + yt-session-generator (YouTube fallback)
 - **Cobalt URL**: https://cobalt-production-8df9.up.railway.app
+## Verification
+
+- `scripts/verify.ps1 -Quick` = lint + typecheck. Runs automatically via the global Stop hook whenever a session edits files - failures must be fixed, not bypassed.
+- `scripts/verify.ps1` (full) = quick checks + tests + production build. Run before committing, deploying, or calling a milestone done, and report the result.
+- Playwright e2e (when present) is NOT part of verify - run it manually when UI flows change.

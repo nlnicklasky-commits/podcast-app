@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { sendMessage, listConversations, getMessages } from '../services/chat'
+import { useAudio } from '../lib/AudioContext'
 import { formatTimestamp } from '../lib/utils'
 import * as Icons from './Icons'
 
@@ -13,9 +14,11 @@ function parseFollowUps(content) {
 
 let msgCounter = 0
 
-export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount = 0 }) {
+export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
+  const { track } = useAudio()
   const [conversations, setConversations] = useState([])
   const [activeConvId, setActiveConvId] = useState(null)
+  const [showSwitcher, setShowSwitcher] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -24,29 +27,66 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   const [convError, setConvError] = useState(null)
   const [followUps, setFollowUps] = useState([])
   const endRef = useRef(null)
+  const menuRef = useRef(null)
+  const switcherBtnRef = useRef(null)
 
-  function loadConversations() {
+  const loadConversations = useCallback(() => {
     setLoadingConversations(true)
     setConvError(null)
     listConversations(knowledgeBaseId)
       .then(setConversations)
       .catch((err) => setConvError(err.message || 'Failed to load conversations'))
       .finally(() => setLoadingConversations(false))
-  }
+  }, [knowledgeBaseId])
 
-  useEffect(() => { loadConversations() }, [knowledgeBaseId])
+  useEffect(() => { loadConversations() }, [loadConversations])
 
   useEffect(() => {
-    if (activeConvId) {
-      getMessages(activeConvId)
-        .then(setMessages)
-        .catch((err) => setError(err.message || 'Failed to load messages'))
-    }
+    if (!activeConvId) return
+    let ignore = false
+    getMessages(activeConvId)
+      .then((data) => {
+        if (ignore) return
+        setMessages(data)
+        setError(null)
+      })
+      .catch((err) => {
+        if (ignore) return
+        setError(err.message || 'Failed to load messages')
+      })
+    return () => { ignore = true }
   }, [activeConvId])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  useEffect(() => {
+    if (!showSwitcher) return
+    const first = menuRef.current?.querySelector('[role="menuitem"]')
+    first?.focus()
+  }, [showSwitcher, loadingConversations, conversations])
+
+  function closeSwitcher() {
+    setShowSwitcher(false)
+    switcherBtnRef.current?.focus()
+  }
+
+  function handleMenuKeyDown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeSwitcher()
+      return
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const items = Array.from(menuRef.current?.querySelectorAll('[role="menuitem"]') || [])
+    if (items.length === 0) return
+    e.preventDefault()
+    const current = items.indexOf(document.activeElement)
+    const delta = e.key === 'ArrowDown' ? 1 : -1
+    const next = (current + delta + items.length) % items.length
+    items[next].focus()
+  }
 
   async function send(text) {
     if (!text.trim() || loading) return
@@ -85,6 +125,18 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
   function startNew() {
     setActiveConvId(null)
     setMessages([])
+    setFollowUps([])
+    setError(null)
+    setShowSwitcher(false)
+  }
+
+  function selectConversation(id) {
+    setShowSwitcher(false)
+    if (id === activeConvId) return
+    setActiveConvId(id)
+    setMessages([])
+    setFollowUps([])
+    setError(null)
   }
 
   const starters = [
@@ -103,18 +155,88 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
           <span className="text-[11px] mono mute uppercase tracking-[0.1em]">
             Ask {kbName}
           </span>
-          <div className="ml-auto flex gap-1">
+          <div className="relative ml-auto flex gap-1">
+            <button
+              ref={switcherBtnRef}
+              onClick={() => setShowSwitcher((v) => !v)}
+              title="Conversation history"
+              aria-haspopup="menu"
+              aria-expanded={showSwitcher}
+              className="mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              <Icons.Chat size={14} />
+            </button>
             <button onClick={startNew} title="New chat" className="mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center">
               <Icons.Plus size={14} />
             </button>
+
+            {showSwitcher && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowSwitcher(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  aria-label="Conversations"
+                  onKeyDown={handleMenuKeyDown}
+                  className="absolute right-0 top-[46px] z-20 w-[260px] max-h-[320px] overflow-y-auto py-1 bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-md)] shadow-lg fade-in"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={startNew}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-[12.5px] text-[var(--text)] hover:bg-[var(--surface)] transition-colors"
+                  >
+                    <Icons.Plus size={13} className="text-[var(--accent)]" />
+                    New chat
+                  </button>
+
+                  {loadingConversations && (
+                    <div className="px-3 py-2 text-[11.5px] dim" role="status">
+                      <span className="sr-only">Loading conversations</span>
+                      Loading…
+                    </div>
+                  )}
+
+                  {!loadingConversations && convError && (
+                    <div className="px-3 py-2 text-[11.5px] text-[var(--error)]" role="alert">
+                      {convError}
+                    </div>
+                  )}
+
+                  {!loadingConversations && !convError && conversations.length === 0 && (
+                    <div className="px-3 py-2 text-[11.5px] dim">No past conversations</div>
+                  )}
+
+                  {!loadingConversations && !convError && conversations.map((c) => (
+                    <button
+                      key={c.id}
+                      role="menuitem"
+                      onClick={() => selectConversation(c.id)}
+                      aria-current={c.id === activeConvId ? 'true' : undefined}
+                      className={`block w-full px-3 py-2 text-left text-[12.5px] truncate transition-colors hover:bg-[var(--surface)] ${
+                        c.id === activeConvId
+                          ? 'text-[var(--accent)] bg-[var(--surface)]'
+                          : 'text-[var(--text-dim)]'
+                      }`}
+                    >
+                      {c.title || 'Untitled conversation'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-[18px] py-4">
+      <div className={`flex-1 overflow-y-auto px-[18px] py-4 ${track ? 'pb-[72px]' : ''}`}>
         {loadingConversations && messages.length === 0 && !convError && (
-          <div className="space-y-3 animate-pulse">
+          <div className="space-y-3 animate-pulse" role="status">
+            <span className="sr-only">Loading conversations</span>
             {[1, 2, 3].map(i => (
               <div key={i} className="h-10 bg-[var(--surface)] rounded-[var(--r-md)]" />
             ))}
@@ -176,13 +298,16 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB', podcastCount
 
       {/* Error */}
       {error && (
-        <div className="px-[18px] py-2 text-[12px] text-[var(--error)] bg-[color-mix(in_oklab,var(--error),transparent_90%)]">
+        <div
+          role="alert"
+          className="px-[18px] py-2 text-[12px] text-[var(--error)] bg-[color-mix(in_oklab,var(--error),transparent_90%)]"
+        >
           {error}
         </div>
       )}
 
       {/* Input */}
-      <div className="p-3.5 border-t border-[var(--border)]">
+      <div className={`p-3.5 border-t border-[var(--border)] ${track ? 'pb-[calc(0.875rem+72px)]' : ''}`}>
         <form
           onSubmit={(e) => { e.preventDefault(); send(input) }}
           className="flex items-end gap-2 bg-[var(--surface)] border border-[var(--border)] focus-within:border-[var(--accent)] rounded-[var(--r-md)] px-2.5 py-2 transition-colors"
@@ -287,7 +412,8 @@ function MessageBubble({ msg }) {
 
 function ThinkingDots() {
   return (
-    <div className="fade-in flex items-center gap-2 mute text-[12px] mono">
+    <div className="fade-in flex items-center gap-2 mute text-[12px] mono" role="status">
+      <span className="sr-only">Searching your podcasts</span>
       <span className="inline-flex gap-[3px]">
         {[0, 1, 2].map((i) => (
           <span

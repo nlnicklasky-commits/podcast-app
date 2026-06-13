@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+build
 dist-ssr
 *.local
 
@@ -39,3 +40,7 @@ test-results/
 # Claude Code orchestration artifacts
 out/
 runs/
+
+# Claude verify-gate runtime
+.claude/.edits-pending
+.claude/logs/

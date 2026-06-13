@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { addPodcastToKB } from '../services/podcasts'
 import { useToast } from '../lib/ToastContext'
 import { useData } from '../lib/DataContext'
@@ -14,6 +14,12 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
   const [error, setError] = useState('')
   const trapRef = useFocusTrap()
   useScrollLock()
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   async function handleAdd(kb) {
     setAdding(kb.id)
@@ -42,13 +48,14 @@ export default function AddToKBModal({ podcastId, existingKBIds = [], onClose, o
         ref={trapRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="add-to-kb-title"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md fade-in bg-[var(--bg-2)] border border-[var(--border)] rounded-[var(--r-lg)]"
       >
         <div
           className="flex items-center px-[18px] py-3.5 border-b border-[var(--border)]"
         >
-          <h3 className="m-0 text-[15px] font-medium">Add to Knowledge Base</h3>
+          <h3 id="add-to-kb-title" className="m-0 text-[15px] font-medium">Add to Knowledge Base</h3>
           <button onClick={onClose} className="ml-auto mute" aria-label="Close">
             <Icons.X size={16} />
           </button>

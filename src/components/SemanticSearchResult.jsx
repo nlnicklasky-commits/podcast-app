@@ -37,6 +37,8 @@ export default function SemanticSearchResult({ result, isActive, onFindSimilar }
             <img
               src={result.thumbnail_url}
               alt=""
+              loading="lazy"
+              decoding="async"
               className="w-8 h-8 rounded object-cover shrink-0"
             />
           ) : (

@@ -19,20 +19,43 @@ export default function ProcessingLog({ podcastId, status }) {
   useEffect(() => {
     if (!podcastId) return
 
-    let consecutiveErrors = 0
     getProcessingLogs(podcastId).then(setLogs).catch(() => {})
 
     if (!isActive) return
 
-    const poll = setInterval(() => {
+    // Self-scheduling poll. On repeated failures we back off exponentially
+    // (3s -> 6s -> 12s -> 24s, capped at 30s) instead of permanently giving up,
+    // so transient network blips recover on their own. Success resets the delay.
+    const BASE_DELAY = 3000
+    const MAX_DELAY = 30000
+    let consecutiveErrors = 0
+    let timer = null
+    let stopped = false
+
+    const schedule = (delay) => {
+      if (stopped) return
+      timer = setTimeout(tick, delay)
+    }
+
+    const tick = () => {
       getProcessingLogs(podcastId)
-        .then((data) => { setLogs(data); consecutiveErrors = 0 })
+        .then((data) => {
+          setLogs(data)
+          consecutiveErrors = 0
+          schedule(BASE_DELAY)
+        })
         .catch(() => {
           consecutiveErrors++
-          if (consecutiveErrors >= 5) clearInterval(poll)
+          const delay = Math.min(BASE_DELAY * 2 ** (consecutiveErrors - 1), MAX_DELAY)
+          schedule(delay)
         })
-    }, 3000)
-    return () => clearInterval(poll)
+    }
+
+    schedule(BASE_DELAY)
+    return () => {
+      stopped = true
+      if (timer) clearTimeout(timer)
+    }
   }, [podcastId, isActive])
 
   useEffect(() => {

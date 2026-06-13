@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { requireUserId } from './_auth'
 
 /**
  * Fetch saved playback progress for a podcast.
@@ -31,6 +32,7 @@ export async function saveProgress(podcastId, { positionSeconds, durationSeconds
     .from('playback_progress')
     .upsert(
       {
+        user_id: await requireUserId(),
         podcast_id: podcastId,
         position_seconds: positionSeconds,
         duration_seconds: durationSeconds ?? null,
@@ -38,7 +40,7 @@ export async function saveProgress(podcastId, { positionSeconds, durationSeconds
         completed: completed ?? false,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'podcast_id' },
+      { onConflict: 'user_id,podcast_id' },
     )
     .select()
     .limit(1)

@@ -4,7 +4,6 @@ import * as Icons from './Icons'
 export default function PodcastImage({ src, size = 40, className = '', iconSize, onClick }) {
   const [failed, setFailed] = useState(false)
 
-  const sizeClass = `w-[${size}px] h-[${size}px]`
   const resolvedIconSize = iconSize ?? Math.max(12, Math.round(size * 0.4))
 
   if (!src || failed) {
@@ -12,7 +11,7 @@ export default function PodcastImage({ src, size = 40, className = '', iconSize,
     return (
       <Wrapper
         onClick={onClick}
-        className={`${sizeClass} shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)] ${onClick ? 'cursor-pointer' : ''} ${className}`}
+        className={`shrink-0 grid place-items-center mute bg-[var(--bg-2)] rounded-[var(--r-sm)] ${onClick ? 'cursor-pointer' : ''} ${className}`}
         style={{ width: size, height: size }}
       >
         <Icons.Headphones size={resolvedIconSize} />
@@ -26,6 +25,8 @@ export default function PodcastImage({ src, size = 40, className = '', iconSize,
       <img
         src={src}
         alt=""
+        loading="lazy"
+        decoding="async"
         className={`object-cover shrink-0 rounded-[var(--r-sm)] ${className}`}
         style={{ width: size, height: size }}
         onError={() => setFailed(true)}

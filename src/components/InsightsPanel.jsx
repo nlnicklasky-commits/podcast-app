@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getInsights } from '../services/processing'
 import { insightsToMarkdown, downloadMarkdown, slugify } from '../lib/export'
 import { useToast } from '../lib/ToastContext'
-import { Tag } from './ui'
+import { Tag, Button, EmptyState } from './ui'
 import * as Icons from './Icons'
 
 export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
@@ -11,16 +11,17 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
-  function loadInsights() {
+  const loadInsights = useCallback(() => {
     setLoading(true)
     setLoadError(null)
     getInsights(podcastId)
       .then(setInsights)
       .catch((err) => setLoadError(err.message || 'Failed to load insights'))
       .finally(() => setLoading(false))
-  }
+  }, [podcastId])
 
-  useEffect(() => { loadInsights() }, [podcastId])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off async insights load on podcast change; refactor tracked
+  useEffect(() => { loadInsights() }, [loadInsights])
 
   function handleExport() {
     if (!insights) return
@@ -37,23 +38,24 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
 
   if (loadError && !insights) {
     return (
-      <div className="text-center py-8 fade-in">
-        <p className="text-[13px] dim mb-3">{loadError}</p>
-        <button
-          onClick={loadInsights}
-          className="px-3 py-1.5 text-[12px] mono bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-md)] hover:border-[var(--accent)] transition-colors"
-        >
-          Retry
-        </button>
-      </div>
+      <EmptyState
+        title={loadError}
+        action={
+          <Button variant="secondary" size="sm" onClick={loadInsights}>
+            Retry
+          </Button>
+        }
+      />
     )
   }
 
   if (!insights) {
     return (
-      <div className="text-center py-8 mute">
-        No insights generated yet. Process this podcast first.
-      </div>
+      <EmptyState
+        icon={<Icons.Sparkle size={28} className="text-[var(--accent)]" />}
+        title="No insights generated yet"
+        subtitle="Process this podcast first to extract a summary, key points, and topics."
+      />
     )
   }
 

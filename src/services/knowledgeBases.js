@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { requireUserId } from './_auth'
 
 export async function listKnowledgeBases() {
   const { data, error } = await supabase
@@ -27,9 +28,11 @@ export async function getKnowledgeBase(id) {
 export async function createKnowledgeBase(name, description = '') {
   if (!name || !name.trim()) throw new Error('Failed to create knowledge base: name is required')
 
+  const user_id = await requireUserId()
+
   const { data, error } = await supabase
     .from('knowledge_bases')
-    .insert({ name: name.trim(), description })
+    .insert({ name: name.trim(), description, user_id })
     .select()
     .limit(1)
 

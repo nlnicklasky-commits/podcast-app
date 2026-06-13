@@ -38,6 +38,7 @@ export function KBGlyph({ name, color = 'copper', size = 24, className = '' }) {
         color: c,
         fontSize: size * 0.45,
       }}
+      aria-hidden="true"
     >
       {initial}
     </div>
@@ -80,5 +81,55 @@ export function Tag({ children, variant = 'default', icon, onClick }) {
       {icon}
       {children}
     </span>
+  )
+}
+
+const BUTTON_VARIANTS = {
+  primary: 'bg-[var(--accent)] text-[var(--accent-fg)] border border-transparent hover:brightness-110',
+  secondary: 'bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:border-[color-mix(in_oklab,var(--accent),transparent_50%)]',
+  danger: 'bg-[var(--error)] text-[var(--accent-fg)] border border-transparent hover:brightness-110',
+  ghost: 'bg-transparent text-[var(--text-dim)] border border-transparent hover:bg-[var(--surface)] hover:text-[var(--text)]',
+}
+
+const BUTTON_SIZES = {
+  sm: 'px-3 py-1.5 text-[12px] gap-1.5 min-h-[32px]',
+  md: 'px-4 py-2 text-[13px] gap-2 min-h-[38px]',
+}
+
+export function Button({ variant = 'primary', size = 'md', loading = false, disabled, className = '', children, ...props }) {
+  const v = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary
+  const s = BUTTON_SIZES[size] || BUTTON_SIZES.md
+  const isDisabled = disabled || loading
+  return (
+    <button
+      type="button"
+      disabled={isDisabled}
+      aria-busy={loading || undefined}
+      className={`inline-flex items-center justify-center font-medium rounded-[var(--r-md)] transition-all ${v} ${s} ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+      {...props}
+    >
+      {loading && (
+        <span
+          className="w-3.5 h-3.5 rounded-full border-2 border-current border-t-transparent animate-spin"
+          aria-hidden="true"
+        />
+      )}
+      {children}
+    </button>
+  )
+}
+
+export function EmptyState({ icon, title, subtitle, action }) {
+  return (
+    <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-[var(--r-lg)]">
+      {icon && (
+        <div className="mx-auto mb-3 flex items-center justify-center text-[var(--text-mute)]" aria-hidden="true">
+          {icon}
+        </div>
+      )}
+      {title && <p className="mute mb-1">{title}</p>}
+      {subtitle && <p className="text-sm mute">{subtitle}</p>}
+      {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
   )
 }
