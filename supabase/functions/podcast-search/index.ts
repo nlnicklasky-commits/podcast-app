@@ -6,6 +6,8 @@ import { podcastIndexFetch } from "../_shared/podcast-index.ts";
 // ---------------------------------------------------------------------------
 
 const ALLOWED_ORIGINS = [
+  "https://www.podbrain.space",
+  "https://podbrain.space",
   "https://podcast-app-ten-gamma.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
