@@ -3,8 +3,7 @@
  * Calls our Supabase Edge Functions which handle Podcast Index API auth.
  */
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+import { callEdgeFunction } from './_edge'
 
 /**
  * Search for podcast shows by name/term.
@@ -13,28 +12,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 export async function searchShows(query) {
   if (!query || !query.trim()) throw new Error('Search failed: query is required')
 
-  let response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/podcast-search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ query: query.trim() }),
-    })
-  } catch (networkError) {
-    throw new Error(`Search failed: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(
-      err.error || `Search failed: edge function returned HTTP ${response.status}`
-    )
-  }
-
-  const data = await response.json()
+  const data = await callEdgeFunction('podcast-search', { query: query.trim() }, {
+    errorPrefix: 'Search failed',
+  })
   return data.results || []
 }
 
@@ -49,28 +29,9 @@ export async function getEpisodes(feedId, feedUrl, options = {}) {
   if (options.max) payload.max = options.max
   if (options.since) payload.since = options.since
 
-  let response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/podcast-episodes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    })
-  } catch (networkError) {
-    throw new Error(`Failed to load episodes: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(
-      err.error || `Failed to load episodes: edge function returned HTTP ${response.status}`
-    )
-  }
-
-  const data = await response.json()
+  const data = await callEdgeFunction('podcast-episodes', payload, {
+    errorPrefix: 'Failed to load episodes',
+  })
   return {
     episodes: data.episodes || [],
     hasMore: data.hasMore || false,
@@ -99,26 +60,9 @@ export async function getAllEpisodes(feedId, feedUrl, onProgress) {
 export async function resolveFeeds(feedUrls) {
   if (!feedUrls || feedUrls.length === 0) return { results: [], unresolved: [] }
 
-  let response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/resolve-feeds`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ feed_urls: feedUrls }),
-    })
-  } catch (networkError) {
-    throw new Error(`Failed to resolve feeds: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `Failed to resolve feeds: HTTP ${response.status}`)
-  }
-
-  return response.json()
+  return callEdgeFunction('resolve-feeds', { feed_urls: feedUrls }, {
+    errorPrefix: 'Failed to resolve feeds',
+  })
 }
 
 /**
@@ -126,26 +70,9 @@ export async function resolveFeeds(feedUrls) {
  * Returns array of { id, name }
  */
 export async function getCategories() {
-  let response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/podcast-discover`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ action: 'categories' }),
-    })
-  } catch (networkError) {
-    throw new Error(`Failed to load categories: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `Failed to load categories: HTTP ${response.status}`)
-  }
-
-  const data = await response.json()
+  const data = await callEdgeFunction('podcast-discover', { action: 'categories' }, {
+    errorPrefix: 'Failed to load categories',
+  })
   return data.categories || []
 }
 
@@ -157,25 +84,8 @@ export async function getTrendingShows(categoryId, max = 20) {
   const payload = { action: 'trending', max }
   if (categoryId) payload.categoryId = categoryId
 
-  let response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/podcast-discover`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    })
-  } catch (networkError) {
-    throw new Error(`Failed to load trending shows: network error (${networkError.message})`)
-  }
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `Failed to load trending shows: HTTP ${response.status}`)
-  }
-
-  const data = await response.json()
+  const data = await callEdgeFunction('podcast-discover', payload, {
+    errorPrefix: 'Failed to load trending shows',
+  })
   return data.shows || []
 }
