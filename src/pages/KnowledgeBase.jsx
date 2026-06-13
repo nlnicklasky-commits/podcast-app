@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getKnowledgeBase, updateKnowledgeBase } from '../services/knowledgeBases'
 import { listPodcasts, addPodcastFromIndex, removePodcastFromKB } from '../services/podcasts'
 import { getInsights, getPodcastStatus } from '../services/processing'
-import { getSynthesis } from '../services/synthesis'
 import { useData } from '../lib/DataContext'
 import { useToast } from '../lib/ToastContext'
 import { useAudio } from '../lib/AudioContext'
@@ -12,7 +11,7 @@ import { KBGlyph, StatusPip, Button, EmptyState } from '../components/ui'
 import PodcastImage from '../components/PodcastImage'
 import * as Icons from '../components/Icons'
 import { formatDuration } from '../lib/utils'
-import { fullKBToMarkdown, downloadMarkdown, slugify } from '../lib/export'
+import ExportModal from '../components/ExportModal'
 import { KBDetailSkeleton } from '../components/Skeleton'
 
 const AddPodcastModal = lazy(() => import('../components/AddPodcastModal'))
@@ -47,6 +46,8 @@ export default function KnowledgeBase() {
   const [activeSection, setActiveSection] = useState('episodes')
   const [showChat, setShowChat] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportData, setExportData] = useState(null)
   const [pendingRemove, setPendingRemove] = useState(null)
   const [removing, setRemoving] = useState(false)
 
@@ -59,24 +60,22 @@ export default function KnowledgeBase() {
   // Extra bottom padding so the fixed MiniPlayer bar doesn't cover the last items
   const playerPad = track ? 'pb-[72px]' : ''
 
-  async function handleExportAll() {
+  async function handleOpenExportModal() {
     if (exporting) return
     setExporting(true)
     try {
-      // Fetch insights for all ready podcasts in parallel
       const readyPodcasts = podcasts.filter((p) => p.status === 'ready')
-      const [insightsResults, synthesis] = await Promise.all([
-        Promise.all(readyPodcasts.map((p) => getInsights(p.id).then((ins) => ({ podcast: p, insights: ins })))),
-        getSynthesis(id),
-      ])
-      const podcastInsights = insightsResults.filter((r) => r.insights)
-      const md = fullKBToMarkdown(kb.name, podcastInsights, synthesis)
-      const filename = `${slugify(kb.name)}-full-export.md`
-      downloadMarkdown(md, filename)
-      addToast('Exported to markdown', 'success')
+      const insightsResults = await Promise.all(
+        readyPodcasts.map((p) => getInsights(p.id).then((ins) => ({ podcast: p, insights: ins })).catch(() => ({ podcast: p, insights: null }))),
+      )
+      setExportData({
+        kb,
+        podcastsWithInsights: insightsResults,
+      })
+      setShowExportModal(true)
     } catch (err) {
-      console.error('Export failed:', err)
-      addToast('Export failed — try again', 'error')
+      console.error('Failed to load export data:', err)
+      addToast('Failed to load data for export', 'error')
     } finally {
       setExporting(false)
     }
@@ -318,26 +317,30 @@ export default function KnowledgeBase() {
                   )}
                 </form>
               ) : (
-                <h1
-                  className="serif text-2xl sm:text-[32px] font-medium tracking-tight m-0 cursor-pointer transition-colors truncate hover:text-[var(--accent)]"
+                <button
+                  type="button"
+                  className="group/rename flex items-center gap-1.5 max-w-full cursor-pointer bg-transparent border-0 p-0 m-0 text-left"
                   onClick={startRename}
-                  title="Click to rename"
+                  aria-label={`Rename ${kb.name}`}
                 >
-                  {kb.name}
-                </h1>
+                  <h1 className="serif text-2xl sm:text-[32px] font-medium tracking-tight m-0 transition-colors truncate group-hover/rename:text-[var(--accent)]">
+                    {kb.name}
+                  </h1>
+                  <Icons.Pencil size={14} className="shrink-0 mute sm:opacity-0 sm:group-hover/rename:opacity-100 transition-opacity" />
+                </button>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {/* Export all */}
               {readyCount > 0 && (
                 <button
-                  onClick={handleExportAll}
+                  onClick={handleOpenExportModal}
                   disabled={exporting}
                   className="flex items-center gap-1.5 px-3 py-2 text-[13px] min-h-[44px] bg-transparent text-[var(--text-dim)] border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)] disabled:opacity-50"
-                  title="Export all insights and synthesis as markdown"
+                  title="Export knowledge base"
                 >
                   <Icons.Download size={14} />
-                  <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export All'}</span>
+                  <span className="hidden sm:inline">{exporting ? 'Loading...' : 'Export'}</span>
                 </button>
               )}
               {/* Mobile chat toggle */}
@@ -370,13 +373,18 @@ export default function KnowledgeBase() {
           </div>
 
           {/* Section tabs */}
-          <div className="flex gap-1 mt-8 mb-[22px] border-b border-[var(--border)] overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div role="tablist" aria-label="Knowledge base sections" className="flex gap-1 mt-8 mb-[22px] border-b border-[var(--border)] overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
             {[
               { id: 'episodes', label: `Episodes · ${podcasts.length}`, icon: <Icons.Headphones size={12} /> },
               { id: 'synthesis', label: 'Synthesis', icon: <Icons.Sparkle size={12} /> },
             ].map((t) => (
               <button
                 key={t.id}
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={activeSection === t.id}
+                aria-controls={`tabpanel-${t.id}`}
+                tabIndex={activeSection === t.id ? 0 : -1}
                 onClick={() => setActiveSection(t.id)}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] -mb-px transition-colors border-b-2 whitespace-nowrap min-h-[44px] ${activeSection === t.id ? 'text-[var(--text)] border-[var(--accent)] font-medium' : 'text-[var(--text-mute)] border-transparent font-normal'}`}
               >
@@ -386,7 +394,7 @@ export default function KnowledgeBase() {
             ))}
           </div>
 
-          <div key={activeSection} className="fade-in">
+          <div key={activeSection} role="tabpanel" id={`tabpanel-${activeSection}`} aria-labelledby={`tab-${activeSection}`} className="fade-in">
             {/* Episodes tab */}
             {activeSection === 'episodes' && (
               <div>
@@ -476,6 +484,15 @@ export default function KnowledgeBase() {
         onConfirm={confirmRemovePodcast}
         onCancel={() => { if (!removing) setPendingRemove(null) }}
       />
+
+      {showExportModal && exportData && (
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          scope="kb"
+          data={exportData}
+        />
+      )}
     </div>
   )
 }

@@ -157,7 +157,11 @@ export default function DiscoverPage() {
             {shows.map(show => (
               <div
                 key={show.id}
-                className="flex gap-3 p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] transition-colors hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)]"
+                role="button"
+                tabIndex={0}
+                onClick={() => setBrowseShow(show)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setBrowseShow(show) } }}
+                className="flex gap-3 p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r-lg)] transition-colors hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-2"
               >
                 {show.artwork && (
                   <img

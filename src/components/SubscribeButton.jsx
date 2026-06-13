@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { subscribe, unsubscribe, isSubscribed } from '../services/subscriptions'
+import { useToast } from '../lib/ToastContext'
 import * as Icons from './Icons'
 
 export default function SubscribeButton({ show, compact = false }) {
+  const { addToast } = useToast()
   const [subId, setSubId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
@@ -29,8 +31,8 @@ export default function SubscribeButton({ show, compact = false }) {
         const sub = await subscribe(show)
         setSubId(sub.id)
       }
-    } catch {
-      // silently fail — button state stays unchanged
+    } catch (err) {
+      addToast(err.message || 'Failed to update subscription', 'error')
     } finally {
       setToggling(false)
     }

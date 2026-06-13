@@ -3,6 +3,7 @@ import { getInsights } from '../services/processing'
 import { insightsToMarkdown, downloadMarkdown, slugify } from '../lib/export'
 import { useToast } from '../lib/ToastContext'
 import { Tag, Button, EmptyState } from './ui'
+import ExportModal from './ExportModal'
 import * as Icons from './Icons'
 
 export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
@@ -10,6 +11,7 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
   const [insights, setInsights] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   const loadInsights = useCallback(() => {
     setLoading(true)
@@ -61,15 +63,23 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
 
   return (
     <div className="flex flex-col gap-[18px]">
-      {/* Export button */}
-      <div className="flex justify-end">
+      {/* Export buttons */}
+      <div className="flex justify-end gap-2">
         <button
           onClick={handleExport}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)]"
-          title="Export insights as markdown"
+          title="Quick export as markdown"
         >
           <Icons.Download size={11} />
-          Export
+          Quick Export
+        </button>
+        <button
+          onClick={() => setShowExportModal(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] dim bg-transparent border border-[var(--border)] rounded-[var(--r-md)] hover:bg-[var(--surface)]"
+          title="Export with options"
+        >
+          <Icons.FileText size={11} />
+          Export...
         </button>
       </div>
 
@@ -152,6 +162,19 @@ export default function InsightsPanel({ podcastId, podcastTitle, podcast }) {
             })}
           </div>
         </div>
+      )}
+
+      {showExportModal && (
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          scope="podcast"
+          data={{
+            podcast: podcast || { title: podcastTitle },
+            insights,
+            transcript: null,
+          }}
+        />
       )}
     </div>
   )

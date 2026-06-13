@@ -286,7 +286,7 @@ export default function AddPodcastModal({ onClose, onAddFromIndex, knowledgeBase
               {step === 'episodes' ? decodeHtml(selectedShow?.title) : 'Add Podcast'}
             </h3>
           </div>
-          <button onClick={onClose} className="ml-auto mute shrink-0" aria-label="Close">
+          <button onClick={onClose} className="ml-auto mute shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Close">
             <Icons.X size={16} />
           </button>
         </div>

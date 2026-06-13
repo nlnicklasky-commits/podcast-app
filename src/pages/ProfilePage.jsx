@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/useAuth'
 import { useToast } from '../lib/ToastContext'
 import { listSubscriptions, unsubscribe, updateSubscription } from '../services/subscriptions'
+import ConfirmDialog from '../components/ConfirmDialog'
 import OPMLImportModal from '../components/OPMLImportModal'
+import UsageCard from '../components/UsageCard'
 import * as Icons from '../components/Icons'
 
 export default function ProfilePage() {
@@ -19,6 +21,7 @@ export default function ProfilePage() {
   const [subscriptions, setSubscriptions] = useState([])
   const [subsLoading, setSubsLoading] = useState(true)
   const [showOPML, setShowOPML] = useState(false)
+  const [pendingUnsubscribe, setPendingUnsubscribe] = useState(null)
 
   useEffect(() => { document.title = 'Profile — PodBrain' }, [])
 
@@ -205,15 +208,7 @@ export default function ProfilePage() {
                     <span className="text-[11px] mute">Auto-process</span>
                   </label>
                   <button
-                    onClick={async () => {
-                      try {
-                        await unsubscribe(sub.id)
-                        setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
-                        addToast('Unsubscribed', 'success')
-                      } catch (err) {
-                        setError(err.message || 'Failed to unsubscribe')
-                      }
-                    }}
+                    onClick={() => setPendingUnsubscribe(sub)}
                     className="p-1.5 mute hover:text-[var(--error)] transition-colors shrink-0"
                     title="Unsubscribe"
                   >
@@ -223,6 +218,11 @@ export default function ProfilePage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Usage */}
+        <div className="mb-4">
+          <UsageCard />
         </div>
 
         {/* Danger zone */}
@@ -281,6 +281,26 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingUnsubscribe}
+        title="Unsubscribe"
+        message={`Unsubscribe from ${pendingUnsubscribe?.feed_title || 'this feed'}? You will no longer receive new episodes.`}
+        confirmLabel="Unsubscribe"
+        destructive
+        onCancel={() => setPendingUnsubscribe(null)}
+        onConfirm={async () => {
+          const sub = pendingUnsubscribe
+          setPendingUnsubscribe(null)
+          try {
+            await unsubscribe(sub.id)
+            setSubscriptions(prev => prev.filter(s => s.id !== sub.id))
+            addToast('Unsubscribed', 'success')
+          } catch (err) {
+            setError(err.message || 'Failed to unsubscribe')
+          }
+        }}
+      />
 
       {showOPML && (
         <OPMLImportModal

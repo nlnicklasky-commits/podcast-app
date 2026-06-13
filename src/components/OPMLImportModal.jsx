@@ -27,6 +27,7 @@ export default function OPMLImportModal({ onClose }) {
   const [, setImporting] = useState(false)
   const [progress, setProgress] = useState(null)
   const [error, setError] = useState('')
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef(null)
   const trapRef = useFocusTrap()
   useScrollLock()
@@ -41,7 +42,7 @@ export default function OPMLImportModal({ onClose }) {
   }, [onClose])
 
   async function handleFile(e) {
-    const file = e.target.files?.[0]
+    const file = e.dataTransfer?.files?.[0] || e.target.files?.[0]
     if (!file) return
 
     setError('')
@@ -195,7 +196,13 @@ export default function OPMLImportModal({ onClose }) {
                 <p className="text-[12px] mb-3 text-[var(--error)]">{error}</p>
               )}
 
-              <label className="flex flex-col items-center justify-center gap-2 py-10 border-2 border-dashed border-[var(--border)] rounded-[var(--r-lg)] cursor-pointer transition-colors hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:bg-[var(--surface)]">
+              <label
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragEnter={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e) }}
+                className={`flex flex-col items-center justify-center gap-2 py-10 border-2 border-dashed rounded-[var(--r-lg)] cursor-pointer transition-colors hover:border-[color-mix(in_oklab,var(--accent),transparent_60%)] hover:bg-[var(--surface)] ${dragging ? 'border-[var(--accent)] bg-[var(--surface)]' : 'border-[var(--border)]'}`}
+              >
                 <Icons.Download size={24} className="mute" />
                 <span className="text-[13px] font-medium">Choose .opml or .xml file</span>
                 <span className="text-[11px] mute">or drag and drop</span>

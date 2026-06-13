@@ -330,12 +330,13 @@ Deno.serve(async (req: Request) => {
       await setProgress(PROGRESS.UPLOAD_COMPLETE);
       await log("transcribing", `Transcript loaded: ${wordCount.toLocaleString()} words, ${paragraphs.length} segments.`);
 
-      await supabase.from("transcripts").insert({
+      const { error: txInsertErr } = await supabase.from("transcripts").insert({
         podcast_id: pod.id,
         full_text: fullText,
         segments: paragraphs,
         word_count: wordCount,
       });
+      if (txInsertErr) throw Object.assign(new Error('Failed to save transcript: ' + txInsertErr.message), { code: ErrorCode.INTERNAL_ERROR, httpStatus: 500 });
 
       await setProgress(PROGRESS.TRANSCRIBE_COMPLETE);
       await log("transcribing", "Transcript stored. Audio download and Whisper skipped.");
@@ -493,12 +494,13 @@ Deno.serve(async (req: Request) => {
       sentences: [{ text: seg.text.trim(), start: seg.start, end: seg.end }],
     }));
 
-    await supabase.from("transcripts").insert({
+    const { error: txInsertErr } = await supabase.from("transcripts").insert({
       podcast_id: pod.id,
       full_text: fullText,
       segments: paragraphs,
       word_count: wordCount,
     });
+    if (txInsertErr) throw Object.assign(new Error('Failed to save transcript: ' + txInsertErr.message), { code: ErrorCode.INTERNAL_ERROR, httpStatus: 500 });
 
     if (await checkCancelled()) return cancelledResponse();
 
@@ -563,7 +565,8 @@ Deno.serve(async (req: Request) => {
         token_count: Math.ceil(chunk.text.length / 4),
       }));
 
-      await supabase.from("chunks").insert(rows);
+      const { error: chunkErr } = await supabase.from("chunks").insert(rows);
+      if (chunkErr) throw Object.assign(new Error('Failed to insert chunks: ' + chunkErr.message), { code: ErrorCode.EMBEDDING_FAILED, httpStatus: 500 });
 
       const progressRange = PROGRESS.CHUNK_EMBED_END - PROGRESS.CHUNK_EMBED_START;
       const overallPct = Math.round(PROGRESS.CHUNK_EMBED_START + (batchNum / totalBatches) * progressRange);

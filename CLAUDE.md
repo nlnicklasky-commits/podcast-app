@@ -218,7 +218,7 @@ Gateway-level `verify_jwt` (see `supabase/config.toml`):
 ### Security Migrations
 
 - **`013_security_phase1_hardening.sql`** - APPLIED to prod. Safe while the app is still anonymous: adds the missing `user_id` ownership columns (nullable), creates `feed_subscriptions`, fixes/creates the `delete_*` RPCs, pins `search_path` on flagged functions, revokes anon `EXECUTE` on the delete RPCs, and drops the anon storage policies on the private `podcast-audio` bucket. Does NOT enable RLS or revoke anon table grants.
-- **`014_security_phase2_lockdown.sql`** - PENDING (point of no return). Backfills all pre-auth rows to the owner account, ENABLEs RLS with policies, and revokes the blanket anon grants (re-granting `authenticated`). Apply ONLY after the owner has signed up AND the JWT-aware frontend is deployed - applying it earlier returns zero rows for every query and bricks the app.
+- **`014_security_phase2_lockdown.sql`** - APPLIED to prod (2026-06-13). Owner account created, all pre-auth rows backfilled, RLS enabled on all 13 tables with appropriate policies, anon grants revoked, authenticated + service_role re-granted.
 
 ## Development Phases
 
@@ -269,12 +269,12 @@ Gateway-level `verify_jwt` (see `supabase/config.toml`):
 - [x] Conversation history per knowledge base
 - [x] Chat UI component
 
-### Phase 6 — Polish & Productize (Later)
-- [~] Supabase Auth integration + RLS policies - IN PROGRESS: Phase 1 DB hardening applied (migration 013); RLS lockdown (migration 014) pending owner signup + new-frontend deploy
+### Phase 6 — Polish & Productize
+- [x] Supabase Auth integration + RLS policies - Auth UI (AuthPage, AuthGate, JWT forwarding) fully built; migration 013 (phase 1 hardening) + migration 014 (RLS lockdown on all 13 tables) both applied to prod; owner account backfilled
 - [x] Responsive design / mobile support (mobile nav, bottom-sheet modals, 44px touch targets)
-- [~] Export insights - [x] markdown (src/lib/export.js); [ ] PDF still open
+- [x] Export insights - markdown (src/lib/export.js), PDF + plain text (ExportModal.jsx + ExportPreview.jsx + exportTemplates.js + html2pdf.js)
 - [x] Vercel deployment (auto-deploy on push to GitHub)
-- [ ] Usage limits / billing if multi-user
+- [x] Usage tracking (src/services/usage.js + UsageCard.jsx on ProfilePage) — groundwork for future billing/limits
 
 ## Environment Variables
 

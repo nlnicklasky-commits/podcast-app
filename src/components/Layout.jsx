@@ -170,7 +170,7 @@ export default function Layout({ children }) {
             aria-label="New knowledge base"
             onClick={() => window.dispatchEvent(new CustomEvent('podbrain:new-kb'))}
             title="New KB"
-            className="mute p-0.5"
+            className="mute p-0.5 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <Icons.Plus size={14} />
           </button>

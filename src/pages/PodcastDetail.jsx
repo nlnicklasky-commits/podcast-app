@@ -7,6 +7,7 @@ import { useToast } from '../lib/ToastContext'
 import { useAudio, useAudioTime } from '../lib/AudioContext'
 import InsightsPanel from '../components/InsightsPanel'
 import AddToKBModal from '../components/AddToKBModal'
+import ExportModal from '../components/ExportModal'
 import ProcessingProgress from '../components/ProcessingProgress'
 import ProcessingLog from '../components/ProcessingLog'
 import { StatusPip, Tag, Button, EmptyState } from '../components/ui'
@@ -31,6 +32,7 @@ export default function PodcastDetail() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [showAddToKB, setShowAddToKB] = useState(false)
+  const [showExport, setShowExport] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processingStartedAt, setProcessingStartedAt] = useState(null)
   const [processingFinishedAt, setProcessingFinishedAt] = useState(null)
@@ -355,6 +357,16 @@ export default function PodcastDetail() {
               >
                 + Add to KB
               </button>
+              {podcast.status === 'ready' && (
+                <button
+                  onClick={() => setShowExport(true)}
+                  className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 transition-colors bg-transparent border border-[var(--border)] rounded-[var(--r-md)] text-[var(--text-dim)] hover:bg-[var(--surface)]"
+                  title="Export podcast"
+                >
+                  <Icons.Download size={13} />
+                  Export
+                </button>
+              )}
               {podcast.url && (
                 <a
                   href={podcast.url}
@@ -535,6 +547,19 @@ export default function PodcastDetail() {
           existingKBIds={linkedKBs.map((kb) => kb.id)}
           onClose={() => setShowAddToKB(false)}
           onAdded={(kb) => setLinkedKBs((prev) => [...prev, kb])}
+        />
+      )}
+
+      {showExport && (
+        <ExportModal
+          isOpen={showExport}
+          onClose={() => setShowExport(false)}
+          scope="podcast"
+          data={{
+            podcast,
+            insights: null,
+            transcript,
+          }}
         />
       )}
     </div>

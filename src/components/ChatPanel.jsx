@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { sendMessage, listConversations, getMessages } from '../services/chat'
 import { useAudio } from '../lib/AudioContext'
 import { formatTimestamp } from '../lib/utils'
+import ExportModal from './ExportModal'
 import * as Icons from './Icons'
 
 function parseFollowUps(content) {
@@ -24,8 +25,10 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
   const [loading, setLoading] = useState(false)
   const [loadingConversations, setLoadingConversations] = useState(true)
   const [error, setError] = useState(null)
+  const [lastFailedQuestion, setLastFailedQuestion] = useState(null)
   const [convError, setConvError] = useState(null)
   const [followUps, setFollowUps] = useState([])
+  const [showExport, setShowExport] = useState(false)
   const endRef = useRef(null)
   const menuRef = useRef(null)
   const switcherBtnRef = useRef(null)
@@ -94,6 +97,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
     setInput('')
     setFollowUps([])
     setError(null)
+    setLastFailedQuestion(null)
     const tempId = `temp-${++msgCounter}`
     setMessages((prev) => [...prev, { role: 'user', content: question, id: tempId }])
     setLoading(true)
@@ -116,6 +120,7 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
       ])
     } catch (err) {
       setError(err.message)
+      setLastFailedQuestion(question)
       setMessages((prev) => prev.filter((m) => m.id !== tempId))
     } finally {
       setLoading(false)
@@ -156,6 +161,15 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
             Ask {kbName}
           </span>
           <div className="relative ml-auto flex gap-1">
+            {messages.length > 0 && (
+              <button
+                onClick={() => setShowExport(true)}
+                title="Export conversation"
+                className="mute p-1 min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-[var(--text)] transition-colors"
+              >
+                <Icons.Download size={14} />
+              </button>
+            )}
             <button
               ref={switcherBtnRef}
               onClick={() => setShowSwitcher((v) => !v)}
@@ -300,9 +314,24 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
       {error && (
         <div
           role="alert"
-          className="px-[18px] py-2 text-[12px] text-[var(--error)] bg-[color-mix(in_oklab,var(--error),transparent_90%)]"
+          className="px-[18px] py-2 text-[12px] text-[var(--error)] bg-[color-mix(in_oklab,var(--error),transparent_90%)] flex items-center gap-2"
         >
-          {error}
+          <span className="flex-1">{error}</span>
+          {lastFailedQuestion && (
+            <button
+              onClick={() => send(lastFailedQuestion)}
+              className="shrink-0 px-2 py-0.5 text-[11px] mono border border-[var(--error)] rounded-[var(--r-sm)] hover:bg-[color-mix(in_oklab,var(--error),transparent_80%)] transition-colors"
+            >
+              Retry
+            </button>
+          )}
+          <button
+            onClick={() => { setError(null); setLastFailedQuestion(null) }}
+            title="Dismiss"
+            className="shrink-0 p-0.5 hover:bg-[color-mix(in_oklab,var(--error),transparent_80%)] rounded transition-colors"
+          >
+            <Icons.X size={12} />
+          </button>
         </div>
       )}
 
@@ -341,6 +370,22 @@ export default function ChatPanel({ knowledgeBaseId, kbName = 'KB' }) {
           <span>scoped to KB</span>
         </div>
       </div>
+
+      {showExport && (
+        <ExportModal
+          isOpen={showExport}
+          onClose={() => setShowExport(false)}
+          scope="conversation"
+          data={{
+            conversation: {
+              id: activeConvId,
+              title: conversations.find((c) => c.id === activeConvId)?.title || messages[0]?.content?.slice(0, 80),
+            },
+            messages,
+            kbName,
+          }}
+        />
+      )}
     </>
   )
 }
