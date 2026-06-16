@@ -44,3 +44,10 @@ runs/
 # Claude verify-gate runtime
 .claude/.edits-pending
 .claude/logs/
+
+# gov runtime state (Q-C9) - created on first use, never committed
+.claude/governor/
+.claude/gov/logs/
+.claude/gov/last-session.json
+.claude/gov/selftest.json
+.claude/gov/selftest-probe.json
